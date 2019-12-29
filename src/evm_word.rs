@@ -8,6 +8,7 @@ use core::{
     iter::{IntoIterator}
 };
 use alloc::{collections::VecDeque};
+use crate::signed_evm_word::SignedEvmWord;
 
 const WORD_LENGTH: usize = 8;
 const USABLE_BIT_LENGTH: u32 = 32;
@@ -97,6 +98,41 @@ impl EVMWord {
             *word = *word ^ BIT_MASK;
         }
     }
+
+    pub fn mult_inverse(&self) -> Option<Self> {
+        let bit_length = WORD_LENGTH * USABLE_BIT_LENGTH as usize;
+        let mut ext_one = Self::one();
+        ext_one.data.push_front(0);
+        let mut ext_zero = Self::zero();
+        ext_zero.data.push_front(0);
+        let mut mask = ext_one.clone();
+        mask <<= bit_length;
+        let mut copy = self.clone();
+        copy.data.push_front(0);
+        let (_, b, v) = SignedEvmWord::egcd(
+            mask.clone().into(),
+            copy.into(),
+        );
+        let res = match v == ext_one.into() {
+            true if b > ext_zero.into() => {
+                let (_, res) = b.to_abs_word();
+                Some(res)
+            },
+            true => {
+                let signed_mask: SignedEvmWord = mask.into();
+                let (_, res) = (b + signed_mask).to_abs_word();
+                Some(res)
+            },
+            false => None
+        };
+        match res {
+            Some(mut word) => {
+                word.data.pop_front();
+                Some(word)
+            },
+            x => x,
+        }
+    }
 }
 
 impl PartialEq for EVMWord {
@@ -183,8 +219,34 @@ impl Shr<usize> for EVMWord {
 
 impl ShrAssign<usize> for EVMWord {
     fn shr_assign(&mut self, rhs: usize) {
-        for word in self.data.iter_mut() {
-            *word = *word >> rhs as u32;
+        let r = rhs as u32 % USABLE_BIT_LENGTH;
+        let s = ((rhs as u32 - r) / USABLE_BIT_LENGTH) as usize;
+
+        if s > self.data.len() {
+            for word in self.data.iter_mut() {
+                *word = 0;
+            }
+        } else if s != 0 {
+            let len = self.data.len();
+            for i in (0..len).rev() {
+                if s < len - i {
+                    self.data[i + s] = self.data[i];
+                }
+            }
+
+            for v in 0..s {
+                self.data[v] = 0;
+            }
+        }
+
+        if r != 0 && !(s > self.data.len()) {
+            let carry_mask = (BIT_MASK ^ ((BIT_MASK >> (USABLE_BIT_LENGTH - r)) << (USABLE_BIT_LENGTH - r))) as u32;
+            let mut carry = 0;
+            for word in self.data.iter_mut() {
+                let word_copy = *word;
+                *word = (carry << (USABLE_BIT_LENGTH - r)) | (word_copy >> r);
+                carry = word_copy & carry_mask;
+            }
         }
     }
 }
@@ -199,8 +261,31 @@ impl Shl<usize> for EVMWord {
 
 impl ShlAssign<usize> for EVMWord {
     fn shl_assign(&mut self, rhs: usize) {
-        for word in self.data.iter_mut() {
-            *word = *word << rhs as u32;
+        let r = rhs as u32 % USABLE_BIT_LENGTH;
+        let s = ((rhs as u32 - r) / USABLE_BIT_LENGTH) as usize;
+
+        if r != 0 {
+            let carry_mask = ((BIT_MASK >> (USABLE_BIT_LENGTH - r)) << (USABLE_BIT_LENGTH - r)) as u32;
+            let mut carry = 0;
+            for word in self.data.iter_mut().rev() {
+                let new_carry = *word & carry_mask;
+                let c = (*word - new_carry) << r;
+                *word = c | carry;
+                carry = new_carry >> (USABLE_BIT_LENGTH - r);
+            }
+        }
+
+        if s != 0 {
+            let len = self.data.len();
+            for i in 0..len {
+                if s < i {
+                    self.data[i - s] = self.data[i];
+                }
+            }
+
+            for v in 0..s {
+                self.data[len - 1 - v] = 0;
+            }
         }
     }
 }
@@ -208,6 +293,7 @@ impl ShlAssign<usize> for EVMWord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex;
 
     #[test]
     fn from() {
@@ -281,6 +367,52 @@ mod tests {
         let result = val_two - val_one;
         let expected = [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(result.to_bytes(), expected);
+    }
+
+    #[test]
+    fn shl_carry() {
+        let mut x_slice: [u8; 32] = [0u8; 32];
+        let mut exp_slice: [u8; 32] = [0u8; 32];
+        let xp = &hex::decode("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap()[0..32];
+        let exp_p = &hex::decode("fffffffffffffffffffffffffffffffffffffffffffffffffffffff800000000").unwrap()[0..32];
+        for i in 0..x_slice.len() {
+            x_slice[i] = xp[i];
+            exp_slice[i] = exp_p[i];
+        }
+        let a = EVMWord::from_bytes(x_slice);
+        let exp = EVMWord::from_bytes(exp_slice);
+        assert_eq!(a << 35, exp);
+    }
+
+    #[test]
+    fn shr_carry() {
+        let mut x_slice: [u8; 32] = [0u8; 32];
+        let mut exp_slice: [u8; 32] = [0u8; 32];
+        let xp = &hex::decode("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap()[0..32];
+        let exp_p = &hex::decode("000000000fffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap()[0..32];
+        for i in 0..x_slice.len() {
+            x_slice[i] = xp[i];
+            exp_slice[i] = exp_p[i];
+        }
+        let a = EVMWord::from_bytes(x_slice);
+        let exp = EVMWord::from_bytes(exp_slice);
+        assert_eq!(a >> 35, exp);
+    }
+
+    #[test]
+    fn mult_inv() {
+        let mut x_slice: [u8; 32] = [0u8; 32];
+        let mut exp_slice: [u8; 32] = [0u8; 32];
+        let xp = &hex::decode("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap()[0..32];
+        let exp_p = &hex::decode("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap()[0..32];
+        for i in 0..x_slice.len() {
+            x_slice[i] = xp[i];
+            exp_slice[i] = exp_p[i];
+        }
+        let a = EVMWord::from_bytes(x_slice);
+        let exp = EVMWord::from_bytes(exp_slice);
+        let res = a.mult_inverse();
+        assert_eq!(res, Some(exp));
     }
 
 }

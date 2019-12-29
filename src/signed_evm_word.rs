@@ -58,6 +58,62 @@ impl SignedEvmWord {
     pub fn is_even(&self) -> bool {
         self.word.is_even()
     }
+
+    pub fn egcd(
+        mut x: SignedEvmWord,
+        mut y: SignedEvmWord
+    ) -> (SignedEvmWord, SignedEvmWord, SignedEvmWord) {
+        let mut g = 0;
+        while x.is_even() && y.is_even() {
+            x >>= 1;
+            y >>= 1;
+            g += 1;
+        }
+
+        let mut a = SignedEvmWord::one();
+        let mut b = SignedEvmWord::zero();
+        let mut c = SignedEvmWord::zero();
+        let mut d = SignedEvmWord::one();
+
+        let mut u = x.clone();
+        let mut v = y.clone();
+        while !u.is_zero() {
+            while u.is_even() {
+                u >>= 1;
+                if a.is_odd() || b.is_odd() {
+                    a = a + &y;
+                    b = b - &x;
+                }
+                a >>= 1;
+                b >>= 1;
+            }
+
+            while v.is_even() {
+                v >>= 1;
+                if c.is_odd() || d.is_odd() {
+                    c = c + &y;
+                    d = d - &x;
+                }
+                c >>= 1;
+                d >>= 1;
+            }
+
+            match u.partial_cmp(&v) {
+                Some(Ordering::Less) => {
+                    v -= &u;
+                    c -= &a;
+                    d -= &b;
+                }
+                _ => {
+                    u -= &v;
+                    a -= &c;
+                    b -= &d;
+                }
+            }
+        }
+
+        (c, d, v << g)
+    }
 }
 
 impl From<EVMWord> for SignedEvmWord {
@@ -203,63 +259,6 @@ impl ShlAssign<usize> for SignedEvmWord {
     fn shl_assign(&mut self, rhs: usize) {
         self.word <<= rhs;
     }
-}
-
-
-pub fn egcd(
-    mut x: SignedEvmWord,
-    mut y: SignedEvmWord
-) -> (SignedEvmWord, SignedEvmWord, SignedEvmWord) {
-    let mut g = 0;
-    while x.is_even() && y.is_even() {
-        x >>= 1;
-        y >>= 1;
-        g += 1;
-    }
-
-    let mut a = SignedEvmWord::one();
-    let mut b = SignedEvmWord::zero();
-    let mut c = SignedEvmWord::zero();
-    let mut d = SignedEvmWord::one();
-
-    let mut u = x.clone();
-    let mut v = y.clone();
-    while !u.is_zero() {
-        while u.is_even() {
-            u >>= 1;
-            if a.is_odd() || b.is_odd() {
-                a = a + &y;
-                b = b - &x;
-            }
-            a >>= 1;
-            b >>= 1;
-        }
-
-        while v.is_even() {
-            v >>= 1;
-            if c.is_odd() || d.is_odd() {
-                c = c + &y;
-                d = d - &x;
-            }
-            c >>= 1;
-            d >>= 1;
-        }
-
-        match u.partial_cmp(&v) {
-            Some(Ordering::Less) => {
-                v -= &u;
-                c -= &a;
-                d -= &b;
-            }
-            _ => {
-                u -= &v;
-                a -= &c;
-                b -= &d;
-            }
-        }
-    }
-
-    (c, d, v << g)
 }
 
 
@@ -444,7 +443,7 @@ mod tests {
             *k = yp[idx];
         }
 
-        let (a, b, v) = egcd(
+        let (a, b, v) = SignedEvmWord::egcd(
             EVMWord::from_bytes(x).into(),
             EVMWord::from_bytes(y).into(),
         );
