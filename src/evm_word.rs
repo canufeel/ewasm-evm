@@ -8,6 +8,7 @@ use core::{
     clone::Clone,
     iter::{IntoIterator}
 };
+use alloc::{collections::VecDeque};
 
 const WORD_LENGTH: usize = 8;
 const USABLE_BIT_LENGTH: u64 = 32;
@@ -16,20 +17,20 @@ const BYTES_PER_WORD: usize = 4;
 const BITS_IN_BYTE: usize = 8;
 const BYTES_WORD_LENGTH: usize = 32;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct EVMWord {
-    data: [u64; WORD_LENGTH]
+    data: VecDeque<u64>
 }
 
 impl EVMWord {
     pub fn from_bytes(bytes: [u8; BYTES_WORD_LENGTH]) -> Self {
-        let mut data = [0u64; WORD_LENGTH];
+        let mut data = VecDeque::with_capacity(WORD_LENGTH);
         for word_num in 0..WORD_LENGTH {
             let mut val: u64 = 0;
             for byte_num in (Range { start: 0, end: BYTES_PER_WORD }).into_iter().rev() {
                 val += (bytes[(word_num * BYTES_PER_WORD) + byte_num] as u64) << (((BYTES_PER_WORD - byte_num - 1) * BITS_IN_BYTE) as u64);
             }
-            data[word_num] = val;
+            data.push_back(val);
         }
         EVMWord {
             data
@@ -48,14 +49,24 @@ impl EVMWord {
     }
 
     pub fn zero() -> Self {
+        let mut data = VecDeque::with_capacity(WORD_LENGTH);
+        for _ in 0..WORD_LENGTH {
+            data.push_back(0u64);
+        }
         EVMWord {
-            data: [0u64; WORD_LENGTH]
+            data
         }
     }
 
     pub fn one() -> Self {
-        let mut data = [0u64; WORD_LENGTH];
-        data[data.len() - 1] = 1;
+        let mut data = VecDeque::with_capacity(WORD_LENGTH);
+        for i in 0..WORD_LENGTH {
+            if i == WORD_LENGTH - 1 {
+                data.push_back(1);
+            } else {
+                data.push_back(0u64);
+            }
+        }
         EVMWord {
             data
         }

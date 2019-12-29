@@ -16,7 +16,7 @@ use core::{
 * proper support of cases like (-0xff) - (-0xfe) in this case (-0xff) == -1
 * and (-0xfe) == -2 and the result of such operation would be (0x01).
 */
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct SignedEvmWord {
     word: EVMWord,
     negative: bool
