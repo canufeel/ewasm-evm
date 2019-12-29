@@ -2,7 +2,6 @@ use crate::evm_word::EVMWord;
 use core::{
     ops::{Add, AddAssign, Sub, SubAssign, Shr, ShrAssign, Shl, ShlAssign},
     cmp::{PartialEq, PartialOrd, Ordering},
-    marker::{Copy},
     clone::Clone
 };
 

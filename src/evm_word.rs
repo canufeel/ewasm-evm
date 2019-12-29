@@ -4,31 +4,30 @@ use core::{
         Shl, ShlAssign, Range
     },
     cmp::{PartialEq, PartialOrd, Ordering},
-    marker::{Copy},
     clone::Clone,
     iter::{IntoIterator}
 };
 use alloc::{collections::VecDeque};
 
 const WORD_LENGTH: usize = 8;
-const USABLE_BIT_LENGTH: u64 = 32;
-const BIT_MASK: u64 = ((1 << USABLE_BIT_LENGTH) - 1);
+const USABLE_BIT_LENGTH: u32 = 32;
+const BIT_MASK: u32 = ((1u64 << USABLE_BIT_LENGTH as u64) - 1) as u32;
 const BYTES_PER_WORD: usize = 4;
 const BITS_IN_BYTE: usize = 8;
 const BYTES_WORD_LENGTH: usize = 32;
 
 #[derive(Clone, Debug)]
 pub struct EVMWord {
-    data: VecDeque<u64>
+    data: VecDeque<u32>
 }
 
 impl EVMWord {
     pub fn from_bytes(bytes: [u8; BYTES_WORD_LENGTH]) -> Self {
         let mut data = VecDeque::with_capacity(WORD_LENGTH);
         for word_num in 0..WORD_LENGTH {
-            let mut val: u64 = 0;
+            let mut val: u32 = 0;
             for byte_num in (Range { start: 0, end: BYTES_PER_WORD }).into_iter().rev() {
-                val += (bytes[(word_num * BYTES_PER_WORD) + byte_num] as u64) << (((BYTES_PER_WORD - byte_num - 1) * BITS_IN_BYTE) as u64);
+                val += (bytes[(word_num * BYTES_PER_WORD) + byte_num] as u32) << (((BYTES_PER_WORD - byte_num - 1) * BITS_IN_BYTE) as u32);
             }
             data.push_back(val);
         }
@@ -40,7 +39,7 @@ impl EVMWord {
     pub fn to_bytes(self) -> [u8; BYTES_WORD_LENGTH] {
         let mut bytes = [0u8; BYTES_WORD_LENGTH];
         for word_num in 0..WORD_LENGTH {
-            let be_bytes: &[u8] = &self.data[word_num].to_be_bytes()[USABLE_BIT_LENGTH as usize / BITS_IN_BYTE..];
+            let be_bytes: &[u8] = &self.data[word_num].to_be_bytes()[..];
             for byte_num in 0..BYTES_PER_WORD {
                 bytes[word_num * BYTES_PER_WORD + byte_num] = be_bytes[byte_num];
             }
@@ -51,7 +50,7 @@ impl EVMWord {
     pub fn zero() -> Self {
         let mut data = VecDeque::with_capacity(WORD_LENGTH);
         for _ in 0..WORD_LENGTH {
-            data.push_back(0u64);
+            data.push_back(0u32);
         }
         EVMWord {
             data
@@ -64,7 +63,7 @@ impl EVMWord {
             if i == WORD_LENGTH - 1 {
                 data.push_back(1);
             } else {
-                data.push_back(0u64);
+                data.push_back(0u32);
             }
         }
         EVMWord {
@@ -128,9 +127,9 @@ impl AddAssign<&Self> for EVMWord {
         let items = self.data.iter_mut().zip(rhs.data.iter());
         let mut carry = 0;
         for (a, b) in items.rev() {
-            let r = *a + *b + carry;
-            carry = r >> USABLE_BIT_LENGTH;
-            *a = r & BIT_MASK;
+            let r = *a as u64 + *b as u64 + carry;
+            carry = r >> USABLE_BIT_LENGTH as u64;
+            *a = (r & BIT_MASK as u64) as u32;
 
         }
     }
@@ -185,7 +184,7 @@ impl Shr<usize> for EVMWord {
 impl ShrAssign<usize> for EVMWord {
     fn shr_assign(&mut self, rhs: usize) {
         for word in self.data.iter_mut() {
-            *word = *word >> rhs as u64;
+            *word = *word >> rhs as u32;
         }
     }
 }
@@ -201,7 +200,7 @@ impl Shl<usize> for EVMWord {
 impl ShlAssign<usize> for EVMWord {
     fn shl_assign(&mut self, rhs: usize) {
         for word in self.data.iter_mut() {
-            *word = *word << rhs as u64;
+            *word = *word << rhs as u32;
         }
     }
 }
