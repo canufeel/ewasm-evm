@@ -4,10 +4,10 @@ version = "0.1.0"
 authors = ["Petr Kosikhin <mq3_storm@mail.ru>"]
 edition = "2018"
 
-[lib]
-crate-type = ["cdylib"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hex = "0.4.0"
+wee_alloc = "0.4.5"
+
+[dev-dependencies]
+hex = { version = "0.4.0", default-features = false }

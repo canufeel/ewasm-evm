@@ -226,10 +226,10 @@ impl Sub for U256 {
 */
 impl ShrAssign for U256 {
     fn shr_assign(&mut self, rhs: Self) {
-        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH;
+        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH as u32;
         let mut shift = 0;
         for (idx, item) in rhs.data.iter().enumerate() {
-            if idx < rhs.data.len() - 1 && item != 0 {
+            if idx < rhs.data.len() - 1 && *item != 0 {
                 shift = max_shift;
                 break;
             } else if idx == rhs.data.len() - 1 {
@@ -239,7 +239,7 @@ impl ShrAssign for U256 {
                 };
             }
         }
-        self >>= shift;
+        *self >>= shift as usize;
     }
 }
 
@@ -301,10 +301,10 @@ impl ShrAssign<usize> for U256 {
 */
 impl ShlAssign for U256 {
     fn shl_assign(&mut self, rhs: Self) {
-        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH;
+        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH as u32;
         let mut shift = 0;
         for (idx, item) in rhs.data.iter().enumerate() {
-            if idx < rhs.data.len() - 1 && item != 0 {
+            if idx < rhs.data.len() - 1 && *item != 0 {
                 shift = max_shift;
                 break;
             } else if idx == rhs.data.len() - 1 {
@@ -314,7 +314,7 @@ impl ShlAssign for U256 {
                 };
             }
         }
-        self <<= shift;
+        *self <<= shift as usize;
     }
 }
 

@@ -52,7 +52,14 @@ impl <T: Clone> EVMStack<T> {
             return Err(VmError::StackUnderflow(String::from("stack underflow")))
         }
 
-        match self.store.get(pos) {
+        let elem = match self.store.get(pos) {
+            Some(elem) => {
+                Some(elem.clone())
+            },
+            None => None
+        };
+
+        match elem {
             Some(elem) => {
                 self.store.push_back(elem.clone());
                 Ok(())
