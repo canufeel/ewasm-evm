@@ -1,6 +1,6 @@
 use core::{
     ops::{
-        Add, Sub, AddAssign, SubAssign, Shr, ShrAssign,
+        Add, Sub, AddAssign, SubAssign, Shr, ShrAssign, Div, DivAssign,
         Shl, ShlAssign, Range
     },
     cmp::{PartialEq, PartialOrd, Ordering},
@@ -287,6 +287,37 @@ impl ShlAssign<usize> for EVMWord {
                 self.data[len - 1 - v] = 0;
             }
         }
+    }
+}
+
+impl DivAssign<&Self> for EVMWord {
+    fn div_assign(&mut self, rhs: &Self) {
+        if &*self < rhs {
+            *self = EVMWord::zero();
+        } else {
+            let (_, b, _) = SignedEvmWord::egcd(
+              self.clone().into(),
+                rhs.clone().into()
+            );
+            let (_, v) = b.to_abs_word();
+            *self = v;
+        }
+    }
+}
+
+impl Div<&Self> for EVMWord {
+    type Output = EVMWord;
+    fn div(mut self, rhs: &Self) -> Self::Output {
+        self /= rhs;
+        self
+    }
+}
+
+impl Div for EVMWord {
+    type Output = EVMWord;
+    fn div(mut self, rhs: Self) -> Self::Output {
+        self /= &rhs;
+        self
     }
 }
 
