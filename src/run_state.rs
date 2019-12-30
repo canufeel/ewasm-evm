@@ -1,8 +1,8 @@
 use crate::stack::EVMStack;
-use crate::evm_word::EVMWord;
+use u256::u256::U256;
 
 pub struct RunState {
-    pub stack: EVMStack<EVMWord>
+    pub stack: EVMStack<U256>
 }
 
 impl RunState {

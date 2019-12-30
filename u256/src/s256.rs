@@ -1,48 +1,38 @@
-use crate::evm_word::EVMWord;
+use crate::u256::U256;
 use core::{
     ops::{Add, AddAssign, Sub, SubAssign, Shr, ShrAssign, Shl, ShlAssign},
     cmp::{PartialEq, PartialOrd, Ordering},
     clone::Clone
 };
 
-/*
-* Since SignedEvmWord is internal implementation detail meant only for
-* some specialised computations which require tracking of number sign
-* we do not care to turn the value upside down on sign change so i.e.
-* value like (-0x01) would be represented in turn as two's compliment
-* of this number (0xff) with negative attribute set to true. This fact
-* requires us to have careful implementation of arithmetic operations for
-* proper support of cases like (-0xff) - (-0xfe) in this case (-0xff) == -1
-* and (-0xfe) == -2 and the result of such operation would be (0x01).
-*/
 #[derive(PartialEq, Clone, Debug)]
-pub struct SignedEvmWord {
-    word: EVMWord,
+pub struct S256 {
+    word: U256,
     negative: bool
 }
 
-impl SignedEvmWord {
-    pub fn from_word(word: EVMWord, positive: bool) -> Self {
-        SignedEvmWord {
+impl S256 {
+    pub fn from_word(word: U256, positive: bool) -> Self {
+        S256 {
             word,
             negative: !positive
         }
     }
 
-    pub fn to_abs_word(self) -> (bool, EVMWord) {
+    pub fn to_abs_word(self) -> (bool, U256) {
         (self.negative, self.word)
     }
 
     pub fn one() -> Self {
-        SignedEvmWord {
-            word: EVMWord::one(),
+        S256 {
+            word: U256::one(),
             negative: false
         }
     }
 
     pub fn zero() -> Self {
-        SignedEvmWord {
-            word: EVMWord::zero(),
+        S256 {
+            word: U256::zero(),
             negative: false
         }
     }
@@ -60,9 +50,9 @@ impl SignedEvmWord {
     }
 
     pub fn egcd(
-        mut x: SignedEvmWord,
-        mut y: SignedEvmWord
-    ) -> (SignedEvmWord, SignedEvmWord, SignedEvmWord) {
+        mut x: S256,
+        mut y: S256
+    ) -> (S256, S256, S256) {
         let mut g = 0;
         while x.is_even() && y.is_even() {
             x >>= 1;
@@ -70,10 +60,10 @@ impl SignedEvmWord {
             g += 1;
         }
 
-        let mut a = SignedEvmWord::one();
-        let mut b = SignedEvmWord::zero();
-        let mut c = SignedEvmWord::zero();
-        let mut d = SignedEvmWord::one();
+        let mut a = S256::one();
+        let mut b = S256::zero();
+        let mut c = S256::zero();
+        let mut d = S256::one();
 
         let mut u = x.clone();
         let mut v = y.clone();
@@ -116,17 +106,17 @@ impl SignedEvmWord {
     }
 }
 
-impl From<EVMWord> for SignedEvmWord {
-    fn from(word: EVMWord) -> Self { SignedEvmWord::from_word(word, true) }
+impl From<U256> for S256 {
+    fn from(word: U256) -> Self { S256::from_word(word, true) }
 }
 
-impl Into<EVMWord> for SignedEvmWord {
-    fn into(self) -> EVMWord {
+impl Into<U256> for S256 {
+    fn into(self) -> U256 {
         self.word
     }
 }
 
-impl PartialOrd for SignedEvmWord {
+impl PartialOrd for S256 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.negative, other.negative) {
             (true, false) => Some(Ordering::Greater),
@@ -141,7 +131,7 @@ impl PartialOrd for SignedEvmWord {
     }
 }
 
-impl AddAssign<&Self> for SignedEvmWord {
+impl AddAssign<&Self> for S256 {
     fn add_assign(&mut self, rhs: &Self) {
         match (self.negative, rhs.negative) {
             (true, false) => {
@@ -149,7 +139,7 @@ impl AddAssign<&Self> for SignedEvmWord {
                     self.negative = false;
                     self.word.twos_compliment();
                     self.word += &rhs.word;
-                    self.word += &EVMWord::one();
+                    self.word += &U256::one();
                 } else {
                     self.word -= &rhs.word;
                 }
@@ -162,7 +152,7 @@ impl AddAssign<&Self> for SignedEvmWord {
                     self.negative = true;
                     self.word -= &rhs.word;
                     self.word.twos_compliment();
-                    self.word += &EVMWord::one();
+                    self.word += &U256::one();
                 }
             },
             (_, _) => { self.word += &rhs.word; }
@@ -170,22 +160,22 @@ impl AddAssign<&Self> for SignedEvmWord {
     }
 }
 
-impl Add<&Self> for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Add<&Self> for S256 {
+    type Output = S256;
     fn add(mut self, rhs: &Self) -> Self::Output {
         self += rhs;
         self
     }
 }
 
-impl Add for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Add for S256 {
+    type Output = S256;
     fn add(self, rhs: Self) -> Self::Output {
         self + &rhs
     }
 }
 
-impl SubAssign<&Self> for SignedEvmWord {
+impl SubAssign<&Self> for S256 {
     fn sub_assign(&mut self, rhs: &Self) {
         match (self.negative, rhs.negative) {
             (true, false) => {
@@ -198,7 +188,7 @@ impl SubAssign<&Self> for SignedEvmWord {
                 if rhs.word >= self.word {
                     self.negative = false;
                     self.word -= &rhs.word;
-                    self.word -= &EVMWord::one();
+                    self.word -= &U256::one();
                     self.word.twos_compliment();
                 } else {
                     self.word -= &rhs.word;
@@ -208,7 +198,7 @@ impl SubAssign<&Self> for SignedEvmWord {
                 if rhs.word > self.word {
                     self.negative = true;
                     self.word -= &rhs.word;
-                    self.word -= &EVMWord::one();
+                    self.word -= &U256::one();
                     self.word.twos_compliment();
                 } else {
                     self.word -= &rhs.word;
@@ -218,44 +208,44 @@ impl SubAssign<&Self> for SignedEvmWord {
     }
 }
 
-impl Sub<&Self> for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Sub<&Self> for S256 {
+    type Output = S256;
     fn sub(mut self, rhs: &Self) -> Self::Output {
         self -= rhs;
         self
     }
 }
 
-impl Sub for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Sub for S256 {
+    type Output = S256;
     fn sub(self, rhs: Self) -> Self::Output {
         self - &rhs
     }
 }
 
-impl Shr<usize> for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Shr<usize> for S256 {
+    type Output = S256;
     fn shr(mut self, rhs: usize) -> Self::Output {
         self >>= rhs;
         self
     }
 }
 
-impl ShrAssign<usize> for SignedEvmWord {
+impl ShrAssign<usize> for S256 {
     fn shr_assign(&mut self, rhs: usize) {
         self.word >>= rhs;
     }
 }
 
-impl Shl<usize> for SignedEvmWord {
-    type Output = SignedEvmWord;
+impl Shl<usize> for S256 {
+    type Output = S256;
     fn shl(mut self, rhs: usize) -> Self::Output {
         self <<= rhs;
         self
     }
 }
 
-impl ShlAssign<usize> for SignedEvmWord {
+impl ShlAssign<usize> for S256 {
     fn shl_assign(&mut self, rhs: usize) {
         self.word <<= rhs;
     }
@@ -280,16 +270,16 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(x_slice),
+        let a: S256 = S256::from_word(
+            U256::from_bytes(x_slice),
             true
         );
-        let b: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(y_slice),
+        let b: S256 = S256::from_word(
+            U256::from_bytes(y_slice),
             false
         );
-        let exp: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(exp_slice),
+        let exp: S256 = S256::from_word(
+            U256::from_bytes(exp_slice),
             true
         );
 
@@ -310,16 +300,16 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(x_slice),
+        let a: S256 = S256::from_word(
+            U256::from_bytes(x_slice),
             true
         );
-        let b: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(y_slice),
+        let b: S256 = S256::from_word(
+            U256::from_bytes(y_slice),
             false
         );
-        let exp: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(exp_slice),
+        let exp: S256 = S256::from_word(
+            U256::from_bytes(exp_slice),
             false
         );
 
@@ -340,16 +330,16 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(x_slice),
+        let a: S256 = S256::from_word(
+            U256::from_bytes(x_slice),
             true
         );
-        let b: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(y_slice),
+        let b: S256 = S256::from_word(
+            U256::from_bytes(y_slice),
             false
         );
-        let exp: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(exp_slice),
+        let exp: S256 = S256::from_word(
+            U256::from_bytes(exp_slice),
             true
         );
 
@@ -370,9 +360,9 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = EVMWord::from_bytes(x_slice).into();
-        let b: SignedEvmWord = EVMWord::from_bytes(y_slice).into();
-        let exp: SignedEvmWord = EVMWord::from_bytes(exp_slice).into();
+        let a: S256 = U256::from_bytes(x_slice).into();
+        let b: S256 = U256::from_bytes(y_slice).into();
+        let exp: S256 = U256::from_bytes(exp_slice).into();
 
         let r = a - b;
         assert_eq!(exp, r);
@@ -391,10 +381,10 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = EVMWord::from_bytes(x_slice).into();
-        let b: SignedEvmWord = EVMWord::from_bytes(y_slice).into();
-        let exp: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(exp_slice),
+        let a: S256 = U256::from_bytes(x_slice).into();
+        let b: S256 = U256::from_bytes(y_slice).into();
+        let exp: S256 = S256::from_word(
+            U256::from_bytes(exp_slice),
             false
         );
 
@@ -415,16 +405,16 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(x_slice),
+        let a: S256 = S256::from_word(
+            U256::from_bytes(x_slice),
             false
         );
-        let b: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(y_slice),
+        let b: S256 = S256::from_word(
+            U256::from_bytes(y_slice),
             false
         );
-        let exp: SignedEvmWord = SignedEvmWord::from_word(
-            EVMWord::from_bytes(exp_slice),
+        let exp: S256 = S256::from_word(
+            U256::from_bytes(exp_slice),
             true
         );
 
@@ -443,9 +433,9 @@ mod tests {
             *k = yp[idx];
         }
 
-        let (a, b, v) = SignedEvmWord::egcd(
-            EVMWord::from_bytes(x).into(),
-            EVMWord::from_bytes(y).into(),
+        let (a, b, v) = S256::egcd(
+            U256::from_bytes(x).into(),
+            U256::from_bytes(y).into(),
         );
         let vp_expected = &hex::decode("0000000000000000000000000000000000000000000000000000000000000015").unwrap()[0..32];
         let ap_expected = &hex::decode("00000000000000000000000000000000000000000000000000000000000000b5").unwrap()[0..32];
@@ -458,9 +448,9 @@ mod tests {
             a_exp[i] = ap_expected[i];
             b_exp[i] = bp_expected[i];
         }
-        let v_word = EVMWord::from_bytes(v_exp);
-        let b_word = EVMWord::from_bytes(b_exp);
-        let a_word = EVMWord::from_bytes(a_exp);
+        let v_word = U256::from_bytes(v_exp);
+        let b_word = U256::from_bytes(b_exp);
+        let a_word = U256::from_bytes(a_exp);
         assert_eq!(v_word, v.into());
         assert_eq!(b_word, b.into());
         assert_eq!(a_word, a.into());

@@ -8,7 +8,7 @@ use core::{
     iter::{IntoIterator}
 };
 use alloc::{collections::VecDeque};
-use crate::signed_evm_word::SignedEvmWord;
+use crate::s256::S256;
 
 const WORD_LENGTH: usize = 8;
 const USABLE_BIT_LENGTH: u32 = 32;
@@ -18,11 +18,11 @@ const BITS_IN_BYTE: usize = 8;
 const BYTES_WORD_LENGTH: usize = 32;
 
 #[derive(Clone, Debug)]
-pub struct EVMWord {
+pub struct U256 {
     data: VecDeque<u32>
 }
 
-impl EVMWord {
+impl U256 {
     pub fn from_bytes(bytes: [u8; BYTES_WORD_LENGTH]) -> Self {
         let mut data = VecDeque::with_capacity(WORD_LENGTH);
         for word_num in 0..WORD_LENGTH {
@@ -32,12 +32,12 @@ impl EVMWord {
             }
             data.push_back(val);
         }
-        EVMWord {
+        U256 {
             data
         }
     }
 
-    pub fn to_bytes(self) -> [u8; BYTES_WORD_LENGTH] {
+    pub fn to_bytes(&self) -> [u8; BYTES_WORD_LENGTH] {
         let mut bytes = [0u8; BYTES_WORD_LENGTH];
         for word_num in 0..WORD_LENGTH {
             let be_bytes: &[u8] = &self.data[word_num].to_be_bytes()[..];
@@ -53,7 +53,7 @@ impl EVMWord {
         for _ in 0..WORD_LENGTH {
             data.push_back(0u32);
         }
-        EVMWord {
+        U256 {
             data
         }
     }
@@ -67,7 +67,7 @@ impl EVMWord {
                 data.push_back(0u32);
             }
         }
-        EVMWord {
+        U256 {
             data
         }
     }
@@ -109,7 +109,7 @@ impl EVMWord {
         mask <<= bit_length;
         let mut copy = self.clone();
         copy.data.push_front(0);
-        let (_, b, v) = SignedEvmWord::egcd(
+        let (_, b, v) = S256::egcd(
             mask.clone().into(),
             copy.into(),
         );
@@ -119,7 +119,7 @@ impl EVMWord {
                 Some(res)
             },
             true => {
-                let signed_mask: SignedEvmWord = mask.into();
+                let signed_mask: S256 = mask.into();
                 let (_, res) = (b + signed_mask).to_abs_word();
                 Some(res)
             },
@@ -135,8 +135,17 @@ impl EVMWord {
     }
 }
 
-impl PartialEq for EVMWord {
-    fn eq(&self, other: &EVMWord) -> bool {
+impl From<bool> for U256 {
+    fn from(val: bool) -> Self {
+        match val {
+            true => U256::one(),
+            false => U256::zero()
+        }
+    }
+}
+
+impl PartialEq for U256 {
+    fn eq(&self, other: &U256) -> bool {
         for (idx, word) in self.data.iter().enumerate() {
             if *word != other.data[idx] {
                 return false;
@@ -146,7 +155,7 @@ impl PartialEq for EVMWord {
     }
 }
 
-impl PartialOrd for EVMWord {
+impl PartialOrd for U256 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         for (idx, word) in self.data.iter().enumerate() {
             match word.partial_cmp(&other.data[idx]) {
@@ -158,7 +167,7 @@ impl PartialOrd for EVMWord {
     }
 }
 
-impl AddAssign<&Self> for EVMWord {
+impl AddAssign<&Self> for U256 {
     fn add_assign(&mut self, rhs: &Self) {
         let items = self.data.iter_mut().zip(rhs.data.iter());
         let mut carry = 0;
@@ -171,22 +180,22 @@ impl AddAssign<&Self> for EVMWord {
     }
 }
 
-impl Add<&Self> for EVMWord {
-    type Output = EVMWord;
+impl Add<&Self> for U256 {
+    type Output = U256;
     fn add(mut self, rhs: &Self) -> Self::Output {
         self += rhs;
         self
     }
 }
 
-impl Add for EVMWord {
-    type Output = EVMWord;
+impl Add for U256 {
+    type Output = U256;
     fn add(self, rhs: Self) -> Self::Output {
         self + &rhs
     }
 }
 
-impl SubAssign<&Self> for EVMWord {
+impl SubAssign<&Self> for U256 {
     fn sub_assign(&mut self, rhs: &Self) {
         self.twos_compliment();
         *self += rhs;
@@ -194,30 +203,63 @@ impl SubAssign<&Self> for EVMWord {
     }
 }
 
-impl Sub<&Self> for EVMWord {
-    type Output = EVMWord;
+impl Sub<&Self> for U256 {
+    type Output = U256;
     fn sub(mut self, rhs: &Self) -> Self::Output {
         self -= rhs;
         self
     }
 }
 
-impl Sub for EVMWord {
-    type Output = EVMWord;
+impl Sub for U256 {
+    type Output = U256;
     fn sub(self, rhs: Self) -> Self::Output {
         self - &rhs
     }
 }
 
-impl Shr<usize> for EVMWord {
-    type Output = EVMWord;
+/*
+* The assumption here is that rhs is not more than 32 bits.
+* For u256 base arithmetic it means that if value is gt 256 the result
+* of such computation would be 0 anyway so there is no need to take the rest
+* of the word into account.
+*/
+impl ShrAssign for U256 {
+    fn shr_assign(&mut self, rhs: Self) {
+        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH;
+        let mut shift = 0;
+        for (idx, item) in rhs.data.iter().enumerate() {
+            if idx < rhs.data.len() - 1 && item != 0 {
+                shift = max_shift;
+                break;
+            } else if idx == rhs.data.len() - 1 {
+                shift = match *item < max_shift {
+                    true => *item,
+                    false => max_shift
+                };
+            }
+        }
+        self >>= shift;
+    }
+}
+
+impl Shr for U256 {
+    type Output = U256;
+    fn shr(mut self, rhs: Self) -> Self::Output {
+        self >>= rhs;
+        self
+    }
+}
+
+impl Shr<usize> for U256 {
+    type Output = U256;
     fn shr(mut self, rhs: usize) -> Self::Output {
         self >>= rhs;
         self
     }
 }
 
-impl ShrAssign<usize> for EVMWord {
+impl ShrAssign<usize> for U256 {
     fn shr_assign(&mut self, rhs: usize) {
         let r = rhs as u32 % USABLE_BIT_LENGTH;
         let s = ((rhs as u32 - r) / USABLE_BIT_LENGTH) as usize;
@@ -251,15 +293,48 @@ impl ShrAssign<usize> for EVMWord {
     }
 }
 
-impl Shl<usize> for EVMWord {
-    type Output = EVMWord;
+/*
+* The assumption here is that rhs is not more than 32 bits.
+* For u256 base arithmetic it means that if value is gt 256 the result
+* of such computation would be 0 anyway so there is no need to take the rest
+* of the word into account.
+*/
+impl ShlAssign for U256 {
+    fn shl_assign(&mut self, rhs: Self) {
+        let max_shift = USABLE_BIT_LENGTH * WORD_LENGTH;
+        let mut shift = 0;
+        for (idx, item) in rhs.data.iter().enumerate() {
+            if idx < rhs.data.len() - 1 && item != 0 {
+                shift = max_shift;
+                break;
+            } else if idx == rhs.data.len() - 1 {
+                shift = match *item < max_shift {
+                    true => *item,
+                    false => max_shift
+                };
+            }
+        }
+        self <<= shift;
+    }
+}
+
+impl Shl for U256 {
+    type Output = U256;
+    fn shl(mut self, rhs: Self) -> Self::Output {
+        self <<= rhs;
+        self
+    }
+}
+
+impl Shl<usize> for U256 {
+    type Output = U256;
     fn shl(mut self, rhs: usize) -> Self::Output {
         self <<= rhs;
         self
     }
 }
 
-impl ShlAssign<usize> for EVMWord {
+impl ShlAssign<usize> for U256 {
     fn shl_assign(&mut self, rhs: usize) {
         let r = rhs as u32 % USABLE_BIT_LENGTH;
         let s = ((rhs as u32 - r) / USABLE_BIT_LENGTH) as usize;
@@ -290,31 +365,30 @@ impl ShlAssign<usize> for EVMWord {
     }
 }
 
-impl DivAssign<&Self> for EVMWord {
+impl DivAssign<&Self> for U256 {
     fn div_assign(&mut self, rhs: &Self) {
         if &*self < rhs {
-            *self = EVMWord::zero();
+            *self = U256::zero();
         } else {
-            let (_, b, _) = SignedEvmWord::egcd(
-              self.clone().into(),
+            let (_, b, _) = S256::egcd(
+                self.clone().into(),
                 rhs.clone().into()
             );
-            let (_, v) = b.to_abs_word();
-            *self = v;
+            *self = b.into();
         }
     }
 }
 
-impl Div<&Self> for EVMWord {
-    type Output = EVMWord;
+impl Div<&Self> for U256 {
+    type Output = U256;
     fn div(mut self, rhs: &Self) -> Self::Output {
         self /= rhs;
         self
     }
 }
 
-impl Div for EVMWord {
-    type Output = EVMWord;
+impl Div for U256 {
+    type Output = U256;
     fn div(mut self, rhs: Self) -> Self::Output {
         self /= &rhs;
         self
@@ -332,7 +406,7 @@ mod tests {
         for i in 0..a.len() {
             a[i] = i as u8;
         }
-        let word = EVMWord::from_bytes(a.clone());
+        let word = U256::from_bytes(a.clone());
         let expected = [66051, 67438087, 134810123, 202182159, 269554195, 336926231, 404298267, 471670303];
         assert_eq!(word.data, expected);
     }
@@ -343,17 +417,17 @@ mod tests {
         for i in 0..a.len() {
             a[i] = i as u8;
         }
-        let word = EVMWord::from_bytes(a.clone());
+        let word = U256::from_bytes(a.clone());
         let b = word.to_bytes();
         assert_eq!(a, b);
     }
 
     #[test]
     fn non_modular_add() {
-        let val_one = EVMWord::from_bytes(
+        let val_one = U256::from_bytes(
             [127, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = EVMWord::from_bytes(
+        let val_two = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one + val_two;
@@ -363,10 +437,10 @@ mod tests {
 
     #[test]
     fn modular_add() {
-        let val_one = EVMWord::from_bytes(
+        let val_one = U256::from_bytes(
             [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = EVMWord::from_bytes(
+        let val_two = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one + val_two;
@@ -376,10 +450,10 @@ mod tests {
 
     #[test]
     fn non_modular_sub() {
-        let val_one = EVMWord::from_bytes(
+        let val_one = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = EVMWord::from_bytes(
+        let val_two = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one - val_two;
@@ -389,10 +463,10 @@ mod tests {
 
     #[test]
     fn modular_sub() {
-        let val_one = EVMWord::from_bytes(
+        let val_one = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = EVMWord::from_bytes(
+        let val_two = U256::from_bytes(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_two - val_one;
@@ -410,8 +484,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = EVMWord::from_bytes(x_slice);
-        let exp = EVMWord::from_bytes(exp_slice);
+        let a = U256::from_bytes(x_slice);
+        let exp = U256::from_bytes(exp_slice);
         assert_eq!(a << 35, exp);
     }
 
@@ -425,8 +499,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = EVMWord::from_bytes(x_slice);
-        let exp = EVMWord::from_bytes(exp_slice);
+        let a = U256::from_bytes(x_slice);
+        let exp = U256::from_bytes(exp_slice);
         assert_eq!(a >> 35, exp);
     }
 
@@ -440,8 +514,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = EVMWord::from_bytes(x_slice);
-        let exp = EVMWord::from_bytes(exp_slice);
+        let a = U256::from_bytes(x_slice);
+        let exp = U256::from_bytes(exp_slice);
         let res = a.mult_inverse();
         assert_eq!(res, Some(exp));
     }
