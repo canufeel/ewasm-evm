@@ -413,37 +413,24 @@ fn carry_add_native(a: u32, b: u32, carry_start: u32) -> (u32, u32) {
 
 impl MulAssign<&Self> for U256 {
     fn mul_assign(&mut self, rhs: &Self) {
-        let half_bits = USABLE_BIT_LENGTH / 2;
-        let lo_mask = BIT_MASK >> half_bits;
         let mut clone = Self::zero();
         let word_max_idx = self.data.len() - 1;
         let length_of_interest = (self.data.len() * 2) - 2;
         for i in (Range { start: 0, end: self.data.len() }).into_iter().rev() {
             let mut c = 0;
             for j in (Range { start: 0, end: rhs.data.len() }).into_iter().rev() {
-                if i + j > length_of_interest / 2 {
+                if i + j >= length_of_interest / 2 {
+                    let idx = word_max_idx - (length_of_interest - (i + j));
                     let (hi, lo) = mul_native(self.data[i], rhs.data[j]);
-                    // Lo
-                    let (v_1_carry, v_1) = carry_add_native(c & lo_mask, lo, 0);
                     let (v_carry, v) = carry_add_native(
-                        v_1,
-                        clone.data[word_max_idx - (length_of_interest - (i + j))] & lo_mask,
-                        0
+                        lo,
+                        clone.data[idx],
+                        c
                     );
+                    let (_, u) = carry_add_native(v_carry, hi, 0);
 
-                    // Hi
-                    let (u_1_carry, u_1) = carry_add_native(c >> half_bits, hi, v_1_carry);
-                    let (u_carry, u) = carry_add_native(
-                        u_1,
-                        clone.data[word_max_idx - (length_of_interest - (i + j))] >> half_bits,
-                        v_carry
-                    );
-
-                    clone.data[word_max_idx - (length_of_interest - (i + j))] = v;
+                    clone.data[idx] = v;
                     c = u;
-                    if word_max_idx - (length_of_interest - (i + j)) > 0 {
-                        clone.data[word_max_idx - (length_of_interest - (i + j)) - 1] = u_1_carry + u_carry;
-                    }
                 }
             }
         }
@@ -520,6 +507,25 @@ mod tests {
         let xp = &hex::decode("4321000000000000000000000000000000000000000000000000000000000000").unwrap()[0..32];
         let yp = &hex::decode("80000000000000000000000000000000000000000000000000000000000000ff").unwrap()[0..32];
         let exp_p = &hex::decode("dddf000000000000000000000000000000000000000000000000000000000000").unwrap()[0..32];
+        for i in 0..x_slice.len() {
+            x_slice[i] = xp[i];
+            y_slice[i] = yp[i];
+            exp_slice[i] = exp_p[i];
+        }
+        let a = U256::from_bytes(x_slice);
+        let b = U256::from_bytes(y_slice);
+        let exp = U256::from_bytes(exp_slice);
+        assert_eq!(a * b, exp);
+    }
+
+    #[test]
+    fn mul_test_random() {
+        let mut x_slice: [u8; 32] = [0u8; 32];
+        let mut y_slice: [u8; 32] = [0u8; 32];
+        let mut exp_slice: [u8; 32] = [0u8; 32];
+        let xp = &hex::decode("ef53f634a31d3661fc3e782a8644c47b5e98fb27e6b523435f69390c2450b260").unwrap()[0..32];
+        let yp = &hex::decode("ca4b530bb3d763d1ffe00d655a3d40c7281bb5e5d5a8c09bd68d0989b44be860").unwrap()[0..32];
+        let exp_p = &hex::decode("43706158d9e1a3d11da733f3b85ed186e7081aca25b5a22027949be68209e400").unwrap()[0..32];
         for i in 0..x_slice.len() {
             x_slice[i] = xp[i];
             y_slice[i] = yp[i];
