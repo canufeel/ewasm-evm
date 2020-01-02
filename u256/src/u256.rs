@@ -416,6 +416,7 @@ impl MulAssign<&Self> for U256 {
         let half_bits = USABLE_BIT_LENGTH / 2;
         let lo_mask = BIT_MASK >> half_bits;
         let mut clone = Self::zero();
+        let word_max_idx = self.data.len() - 1;
         let length_of_interest = (self.data.len() * 2) - 2;
         for i in (Range { start: 0, end: self.data.len() }).into_iter().rev() {
             let mut c = 0;
@@ -426,7 +427,7 @@ impl MulAssign<&Self> for U256 {
                     let (v_1_carry, v_1) = carry_add_native(c & lo_mask, lo, 0);
                     let (v_carry, v) = carry_add_native(
                         v_1,
-                        clone.data[length_of_interest - (i + j)] & lo_mask,
+                        clone.data[word_max_idx - (length_of_interest - (i + j))] & lo_mask,
                         0
                     );
 
@@ -434,13 +435,15 @@ impl MulAssign<&Self> for U256 {
                     let (u_1_carry, u_1) = carry_add_native(c >> half_bits, hi, v_1_carry);
                     let (u_carry, u) = carry_add_native(
                         u_1,
-                        clone.data[length_of_interest - (i + j)] >> half_bits,
+                        clone.data[word_max_idx - (length_of_interest - (i + j))] >> half_bits,
                         v_carry
                     );
 
-                    clone.data[length_of_interest - (i + j)] = v;
+                    clone.data[word_max_idx - (length_of_interest - (i + j))] = v;
                     c = u;
-                    clone.data[length_of_interest - (i + j) - 1] = u_1_carry + u_carry;
+                    if word_max_idx - (length_of_interest - (i + j)) > 0 {
+                        clone.data[word_max_idx - (length_of_interest - (i + j)) - 1] = u_1_carry + u_carry;
+                    }
                 }
             }
         }
