@@ -28,15 +28,19 @@ impl <V: Debug> UnsafeMem<V> {
     }
 }
 
-impl<A: Debug + Into<usize> + From<usize>, V: Debug> WMemory<A, V> for UnsafeMem<V> {
+impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for UnsafeMem<V> {
     fn load(&self, address: A) -> Option<V> {
         let UnsafeMem { data, size} = self;
         let size_addr: usize = address.into();
         match size_addr >= 0 && size_addr < *size {
             true => {
-                let loaded;
+                let mut loaded: V = V::default();
                 unsafe {
-                    loaded = *data.offset(size_addr as isize);
+                    ptr::copy(
+                        data.offset(size_addr as isize),
+                        &mut loaded,
+                        1
+                    );
                 }
                 Some(loaded)
             },
@@ -55,18 +59,32 @@ impl<A: Debug + Into<usize> + From<usize>, V: Debug> WMemory<A, V> for UnsafeMem
     fn grow(&mut self, size: A) {
         let new_size = self.size + size.into();
         let typesize = mem::size_of::<V>();
-        let original_layout = Layout::from_size_align(
-            self.size * typesize,
-            typesize
-        ).unwrap();
-        let new_data = unsafe {
-            let new_data = realloc(
-                self.data as *mut u8,
-                original_layout,
-                new_size * typesize
-            );
-            new_data
-        } as *mut V;
+        let new_data = match self.size {
+            0 => {
+                let layout = Layout::from_size_align(
+                    new_size * typesize,
+                    typesize
+                ).unwrap();
+                unsafe {
+                    alloc(
+                        layout
+                    ) as *mut V
+                }
+            },
+            _ => {
+                let original_layout = Layout::from_size_align(
+                    self.size * typesize,
+                    typesize
+                ).unwrap();
+                unsafe {
+                    realloc(
+                        self.data as *mut u8,
+                        original_layout,
+                        new_size * typesize
+                    ) as *mut V
+                }
+            }
+        };
         self.size = new_size;
         self.data = new_data;
     }
