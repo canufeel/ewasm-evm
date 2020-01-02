@@ -1,8 +1,9 @@
 use core::{
     ops::{
         Add, Sub, AddAssign, SubAssign, Shr, ShrAssign, Div, DivAssign,
-        Shl, ShlAssign, Range
+        Shl, ShlAssign, Range, Mul, MulAssign
     },
+    default::Default,
     cmp::{PartialEq, PartialOrd, Ordering},
     clone::Clone,
     iter::{IntoIterator}
@@ -132,6 +133,12 @@ impl U256 {
             },
             x => x,
         }
+    }
+}
+
+impl Default for U256 {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 
@@ -365,6 +372,98 @@ impl ShlAssign<usize> for U256 {
     }
 }
 
+fn mul_native(a: u32, b: u32) -> (u32, u32) {
+    let half_bits = USABLE_BIT_LENGTH / 2;
+    let lo_mask = BIT_MASK >> half_bits;
+    let a_hi = a >> half_bits;
+    let b_hi = b >> half_bits;
+    let a_lo = a & lo_mask;
+    let b_lo = b & lo_mask;
+    let t1 = a_lo * b_lo;
+    let t2 = a_hi * b_lo;
+    let t3 = a_lo * b_hi;
+    let t4 = a_hi * b_hi;
+    let t1_hi = t1 >> half_bits;
+    let t1_lo = t1 & lo_mask;
+    let u1 = t2 + t1_hi;
+    let u1_hi = u1 >> half_bits;
+    let u1_lo = u1 & lo_mask;
+    let u2 = t3 + u1_lo;
+    let u2_hi = u2 >> half_bits;
+    let lo = u2 << half_bits | t1_lo;
+    let hi = t4 + (u2_hi + u1_hi);
+    (hi, lo)
+}
+
+fn carry_add_native(a: u32, b: u32, carry_start: u32) -> (u32, u32) {
+    let half_bits = USABLE_BIT_LENGTH / 2;
+    let lo_mask = BIT_MASK >> half_bits;
+    let a_lo = a & lo_mask;
+    let b_lo = b & lo_mask;
+    let full_sum_lo = a_lo + b_lo + carry_start;
+    let carry_lo = full_sum_lo >> half_bits;
+    let lo = full_sum_lo & lo_mask;
+    let a_hi = a >> half_bits;
+    let b_hi = b >> half_bits;
+    let full_sum_hi = a_hi + b_hi + carry_lo;
+    let carry = full_sum_hi >> half_bits;
+    let hi = full_sum_hi & lo_mask;
+    (carry, (hi << half_bits) + lo)
+}
+
+impl MulAssign<&Self> for U256 {
+    fn mul_assign(&mut self, rhs: &Self) {
+        let half_bits = USABLE_BIT_LENGTH / 2;
+        let lo_mask = BIT_MASK >> half_bits;
+        let mut clone = Self::zero();
+        let length_of_interest = (self.data.len() * 2) - 2;
+        for i in (Range { start: 0, end: self.data.len() }).into_iter().rev() {
+            let mut c = 0;
+            for j in (Range { start: 0, end: rhs.data.len() }).into_iter().rev() {
+                if i + j > length_of_interest / 2 {
+                    let (hi, lo) = mul_native(self.data[i], rhs.data[j]);
+                    // Lo
+                    let (v_1_carry, v_1) = carry_add_native(c & lo_mask, lo, 0);
+                    let (v_carry, v) = carry_add_native(
+                        v_1,
+                        clone.data[length_of_interest - (i + j)] & lo_mask,
+                        0
+                    );
+
+                    // Hi
+                    let (u_1_carry, u_1) = carry_add_native(c >> half_bits, hi, v_1_carry);
+                    let (u_carry, u) = carry_add_native(
+                        u_1,
+                        clone.data[length_of_interest - (i + j)] >> half_bits,
+                        v_carry
+                    );
+
+                    clone.data[length_of_interest - (i + j)] = v;
+                    c = u;
+                    clone.data[length_of_interest - (i + j) - 1] = u_1_carry + u_carry;
+                }
+            }
+        }
+        *self = clone;
+    }
+}
+
+impl Mul<&Self> for U256 {
+    type Output = U256;
+    fn mul(mut self, rhs: &Self) -> Self::Output {
+        self *= rhs;
+        self
+    }
+}
+
+impl Mul for U256 {
+    type Output = U256;
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        self *= &rhs;
+        self
+    }
+}
+
 impl DivAssign<&Self> for U256 {
     fn div_assign(&mut self, rhs: &Self) {
         if &*self < rhs {
@@ -399,6 +498,35 @@ impl Div for U256 {
 mod tests {
     use super::*;
     use hex;
+
+    #[test]
+    fn mul_native_correctness() {
+        let a = 0xffffffff;
+        let b = 0xffffffff;
+        let c = a as u64 * b as u64;
+        let (hi, lo) = mul_native(a, b);
+        let d = ((hi as u64) << 32) + (lo as u64);
+        assert_eq!(c, d);
+    }
+
+    #[test]
+    fn mul_mod() {
+        let mut x_slice: [u8; 32] = [0u8; 32];
+        let mut y_slice: [u8; 32] = [0u8; 32];
+        let mut exp_slice: [u8; 32] = [0u8; 32];
+        let xp = &hex::decode("4321000000000000000000000000000000000000000000000000000000000000").unwrap()[0..32];
+        let yp = &hex::decode("80000000000000000000000000000000000000000000000000000000000000ff").unwrap()[0..32];
+        let exp_p = &hex::decode("dddf000000000000000000000000000000000000000000000000000000000000").unwrap()[0..32];
+        for i in 0..x_slice.len() {
+            x_slice[i] = xp[i];
+            y_slice[i] = yp[i];
+            exp_slice[i] = exp_p[i];
+        }
+        let a = U256::from_bytes(x_slice);
+        let b = U256::from_bytes(y_slice);
+        let exp = U256::from_bytes(exp_slice);
+        assert_eq!(a * b, exp);
+    }
 
     #[test]
     fn from() {
