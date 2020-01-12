@@ -1,12 +1,14 @@
 use core::{
     ops::{
         Add, Sub, AddAssign, SubAssign, Shr, ShrAssign, Div, DivAssign,
-        Shl, ShlAssign, Range, Mul, MulAssign
+        Shl, ShlAssign, Range, Mul, MulAssign, BitAnd, BitAndAssign,
+        BitOr, BitOrAssign, BitXor, BitXorAssign
     },
     default::Default,
     cmp::{PartialEq, PartialOrd, Ordering},
     clone::Clone,
-    iter::{IntoIterator}
+    iter::{IntoIterator},
+    convert::{From, Into}
 };
 use alloc::{collections::VecDeque};
 use crate::s256::S256;
@@ -18,37 +20,14 @@ const BYTES_PER_WORD: usize = 4;
 const BITS_IN_BYTE: usize = 8;
 const BYTES_WORD_LENGTH: usize = 32;
 
+pub type U256bytes = [u8; BYTES_WORD_LENGTH];
+
 #[derive(Clone, Debug)]
 pub struct U256 {
     data: VecDeque<u32>
 }
 
 impl U256 {
-    pub fn from_bytes(bytes: [u8; BYTES_WORD_LENGTH]) -> Self {
-        let mut data = VecDeque::with_capacity(WORD_LENGTH);
-        for word_num in 0..WORD_LENGTH {
-            let mut val: u32 = 0;
-            for byte_num in (Range { start: 0, end: BYTES_PER_WORD }).into_iter().rev() {
-                val += (bytes[(word_num * BYTES_PER_WORD) + byte_num] as u32) << (((BYTES_PER_WORD - byte_num - 1) * BITS_IN_BYTE) as u32);
-            }
-            data.push_back(val);
-        }
-        U256 {
-            data
-        }
-    }
-
-    pub fn to_bytes(&self) -> [u8; BYTES_WORD_LENGTH] {
-        let mut bytes = [0u8; BYTES_WORD_LENGTH];
-        for word_num in 0..WORD_LENGTH {
-            let be_bytes: &[u8] = &self.data[word_num].to_be_bytes()[..];
-            for byte_num in 0..BYTES_PER_WORD {
-                bytes[word_num * BYTES_PER_WORD + byte_num] = be_bytes[byte_num];
-            }
-        }
-        bytes
-    }
-
     pub fn zero() -> Self {
         let mut data = VecDeque::with_capacity(WORD_LENGTH);
         for _ in 0..WORD_LENGTH {
@@ -148,6 +127,51 @@ impl From<bool> for U256 {
             true => U256::one(),
             false => U256::zero()
         }
+    }
+}
+
+impl From<U256bytes> for U256 {
+    fn from(bytes: U256bytes) -> Self {
+        let mut data = VecDeque::with_capacity(WORD_LENGTH);
+        for word_num in 0..WORD_LENGTH {
+            let mut val: u32 = 0;
+            for byte_num in (Range { start: 0, end: BYTES_PER_WORD }).into_iter().rev() {
+                val += (bytes[(word_num * BYTES_PER_WORD) + byte_num] as u32) << (((BYTES_PER_WORD - byte_num - 1) * BITS_IN_BYTE) as u32);
+            }
+            data.push_back(val);
+        }
+        U256 {
+            data
+        }
+    }
+}
+
+impl Into<U256bytes> for U256 {
+    fn into(self) -> U256bytes {
+        let mut bytes = [0u8; BYTES_WORD_LENGTH];
+        for word_num in 0..WORD_LENGTH {
+            let be_bytes: &[u8] = &self.data[word_num].to_be_bytes()[..];
+            for byte_num in 0..BYTES_PER_WORD {
+                bytes[word_num * BYTES_PER_WORD + byte_num] = be_bytes[byte_num];
+            }
+        }
+        bytes
+    }
+}
+
+impl From<usize> for U256 {
+    fn from(val: usize) -> Self {
+        let mut def = Self::default();
+        let idx = def.data.len() - 1;
+        def.data[idx] = val as u32;
+        def
+    }
+}
+
+impl Into<usize> for U256 {
+    fn into(self) -> usize {
+        let idx = self.data.len() - 1;
+        self.data[idx] as usize
     }
 }
 
@@ -372,6 +396,84 @@ impl ShlAssign<usize> for U256 {
     }
 }
 
+impl BitAndAssign<&Self> for U256 {
+    fn bitand_assign(&mut self, rhs: &Self) {
+        for (lhs_word, rhs_word) in self.data.iter_mut().zip(rhs.data.iter()) {
+            *lhs_word = *lhs_word & *rhs_word;
+        }
+    }
+}
+
+impl BitAnd<&Self> for U256 {
+    type Output = U256;
+
+    fn bitand(mut self, rhs: &Self) -> Self::Output {
+        self &= rhs;
+        self
+    }
+}
+
+impl BitAnd for U256 {
+    type Output = U256;
+
+    fn bitand(mut self, rhs: Self) -> Self::Output {
+        self &= &rhs;
+        self
+    }
+}
+
+impl BitOrAssign<&Self> for U256 {
+    fn bitor_assign(&mut self, rhs: &Self) {
+        for (lhs_word, rhs_word) in self.data.iter_mut().zip(rhs.data.iter()) {
+            *lhs_word = *lhs_word | *rhs_word;
+        }
+    }
+}
+
+impl BitOr<&Self> for U256 {
+    type Output = U256;
+
+    fn bitor(mut self, rhs: &Self) -> Self::Output {
+        self |= rhs;
+        self
+    }
+}
+
+impl BitOr for U256 {
+    type Output = U256;
+
+    fn bitor(mut self, rhs: Self) -> Self::Output {
+        self |= &rhs;
+        self
+    }
+}
+
+impl BitXorAssign<&Self> for U256 {
+    fn bitxor_assign(&mut self, rhs: &Self) {
+        for (lhs_word, rhs_word) in self.data.iter_mut().zip(rhs.data.iter()) {
+            *lhs_word = *lhs_word ^ *rhs_word;
+        }
+    }
+}
+
+impl BitXor<&Self> for U256 {
+    type Output = U256;
+
+    fn bitxor(mut self, rhs: &Self) -> Self::Output {
+        self ^= rhs;
+        self
+    }
+}
+
+impl BitXor for U256 {
+    type Output = U256;
+
+    fn bitxor(mut self, rhs: Self) -> Self::Output {
+        self ^= &rhs;
+        self
+    }
+}
+
 fn mul_native(a: u32, b: u32) -> (u32, u32) {
     let half_bits = USABLE_BIT_LENGTH / 2;
     let lo_mask = BIT_MASK >> half_bits;
@@ -512,9 +614,9 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = U256::from_bytes(x_slice);
-        let b = U256::from_bytes(y_slice);
-        let exp = U256::from_bytes(exp_slice);
+        let a = U256::from(x_slice);
+        let b = U256::from(y_slice);
+        let exp = U256::from(exp_slice);
         assert_eq!(a * b, exp);
     }
 
@@ -531,9 +633,9 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = U256::from_bytes(x_slice);
-        let b = U256::from_bytes(y_slice);
-        let exp = U256::from_bytes(exp_slice);
+        let a = U256::from(x_slice);
+        let b = U256::from(y_slice);
+        let exp = U256::from(exp_slice);
         assert_eq!(a * b, exp);
     }
 
@@ -543,72 +645,76 @@ mod tests {
         for i in 0..a.len() {
             a[i] = i as u8;
         }
-        let word = U256::from_bytes(a.clone());
+        let word = U256::from(a.clone());
         let expected = [66051, 67438087, 134810123, 202182159, 269554195, 336926231, 404298267, 471670303];
         assert_eq!(word.data, expected);
     }
 
     #[test]
     fn from_to() {
-        let mut a = [0u8; 32];
+        let mut a: U256bytes = [0u8; 32];
         for i in 0..a.len() {
             a[i] = i as u8;
         }
-        let word = U256::from_bytes(a.clone());
-        let b = word.to_bytes();
+        let word = U256::from(a.clone());
+        let b: U256bytes = word.into();
         assert_eq!(a, b);
     }
 
     #[test]
     fn non_modular_add() {
-        let val_one = U256::from_bytes(
+        let val_one = U256::from(
             [127, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = U256::from_bytes(
+        let val_two = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one + val_two;
-        let expected = [128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254];
-        assert_eq!(result.to_bytes(), expected);
+        let expected: U256bytes = [128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254];
+        let actual: U256bytes = result.into();
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn modular_add() {
-        let val_one = U256::from_bytes(
+        let val_one = U256::from(
             [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = U256::from_bytes(
+        let val_two = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one + val_two;
-        let expected = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254];
-        assert_eq!(result.to_bytes(), expected);
+        let expected: U256bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254];
+        let actual: U256bytes = result.into();
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn non_modular_sub() {
-        let val_one = U256::from_bytes(
+        let val_one = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = U256::from_bytes(
+        let val_two = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_one - val_two;
-        let expected = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(result.to_bytes(), expected);
+        let expected: U256bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let actual: U256bytes = result.into();
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn modular_sub() {
-        let val_one = U256::from_bytes(
+        let val_one = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
-        let val_two = U256::from_bytes(
+        let val_two = U256::from(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
         );
         let result = val_two - val_one;
-        let expected = [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(result.to_bytes(), expected);
+        let expected: U256bytes = [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let actual: U256bytes = result.into();
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -621,8 +727,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = U256::from_bytes(x_slice);
-        let exp = U256::from_bytes(exp_slice);
+        let a = U256::from(x_slice);
+        let exp = U256::from(exp_slice);
         assert_eq!(a << 35, exp);
     }
 
@@ -636,8 +742,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = U256::from_bytes(x_slice);
-        let exp = U256::from_bytes(exp_slice);
+        let a = U256::from(x_slice);
+        let exp = U256::from(exp_slice);
         assert_eq!(a >> 35, exp);
     }
 
@@ -651,8 +757,8 @@ mod tests {
             x_slice[i] = xp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a = U256::from_bytes(x_slice);
-        let exp = U256::from_bytes(exp_slice);
+        let a = U256::from(x_slice);
+        let exp = U256::from(exp_slice);
         let res = a.mult_inverse();
         assert_eq!(res, Some(exp));
     }

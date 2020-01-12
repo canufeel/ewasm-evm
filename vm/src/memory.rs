@@ -14,23 +14,23 @@ pub trait WMemory<A: Debug, V: Debug>: Debug {
 }
 
 #[derive(Debug)]
-pub struct UnsafeMem<V: Debug> {
+pub struct EVMMemory<V: Debug> {
     data: *mut V,
     size: usize,
 }
 
-impl <V: Debug> UnsafeMem<V> {
-    pub fn new() -> UnsafeMem<V> {
-        UnsafeMem {
+impl <V: Debug> EVMMemory<V> {
+    pub fn new() -> EVMMemory<V> {
+        EVMMemory {
             data: ptr::null_mut(),
             size: 0
         }
     }
 }
 
-impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for UnsafeMem<V> {
+impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for EVMMemory<V> {
     fn load(&self, address: A) -> Option<V> {
-        let UnsafeMem { data, size} = self;
+        let EVMMemory { data, size} = self;
         let size_addr: usize = address.into();
         match size_addr >= 0 && size_addr < *size {
             true => {
@@ -49,7 +49,7 @@ impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for
     }
 
     fn store(&mut self, address: A, value: V) {
-        let UnsafeMem { data, .. } = self;
+        let EVMMemory { data, .. } = self;
         unsafe {
             let ptr = data.offset(address.into() as isize);
             *ptr = value;

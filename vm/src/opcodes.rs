@@ -26,14 +26,12 @@ impl OpCodeRunner {
         Ok(())
     }
 
-    /*
     pub fn mul(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a * b);
         Ok(())
     }
-    */
 
     pub fn div(&mut self) -> VmResult<()> {
         let mut a = self.run_state.stack.pop()?;
@@ -91,6 +89,45 @@ impl OpCodeRunner {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(b >> a);
+        Ok(())
+    }
+
+    pub fn and(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        self.run_state.stack.push(a & b);
+        Ok(())
+    }
+
+    pub fn or(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        self.run_state.stack.push(a | b);
+        Ok(())
+    }
+
+    pub fn xor(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        self.run_state.stack.push(a ^ b);
+        Ok(())
+    }
+
+    pub fn not(&mut self) -> VmResult<()> {
+        let mut a = self.run_state.stack.pop()?;
+        a.twos_compliment();
+        self.run_state.stack.push(a);
+        Ok(())
+    }
+
+    pub fn mstore(&mut self) -> VmResult<()> {
+        let offset = self.run_state.stack.pop()?;
+        let word = self.run_state.stack.pop()?;
+        let size = self.run_state.memory.size();
+        if size < offset {
+            self.run_state.memory.grow(offset.clone());
+        }
+        self.run_state.memory.store(offset, word);
         Ok(())
     }
 }

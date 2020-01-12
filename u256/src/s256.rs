@@ -1,4 +1,4 @@
-use crate::u256::U256;
+use crate::u256::{U256, U256bytes};
 use core::{
     ops::{Add, AddAssign, Sub, SubAssign, Shr, ShrAssign, Shl, ShlAssign},
     cmp::{PartialEq, PartialOrd, Ordering},
@@ -271,15 +271,15 @@ mod tests {
             exp_slice[i] = exp_p[i];
         }
         let a: S256 = S256::from_word(
-            U256::from_bytes(x_slice),
+            U256::from(x_slice),
             true
         );
         let b: S256 = S256::from_word(
-            U256::from_bytes(y_slice),
+            U256::from(y_slice),
             false
         );
         let exp: S256 = S256::from_word(
-            U256::from_bytes(exp_slice),
+            U256::from(exp_slice),
             true
         );
 
@@ -301,15 +301,15 @@ mod tests {
             exp_slice[i] = exp_p[i];
         }
         let a: S256 = S256::from_word(
-            U256::from_bytes(x_slice),
+            U256::from(x_slice),
             true
         );
         let b: S256 = S256::from_word(
-            U256::from_bytes(y_slice),
+            U256::from(y_slice),
             false
         );
         let exp: S256 = S256::from_word(
-            U256::from_bytes(exp_slice),
+            U256::from(exp_slice),
             false
         );
 
@@ -331,15 +331,15 @@ mod tests {
             exp_slice[i] = exp_p[i];
         }
         let a: S256 = S256::from_word(
-            U256::from_bytes(x_slice),
+            U256::from(x_slice),
             true
         );
         let b: S256 = S256::from_word(
-            U256::from_bytes(y_slice),
+            U256::from(y_slice),
             false
         );
         let exp: S256 = S256::from_word(
-            U256::from_bytes(exp_slice),
+            U256::from(exp_slice),
             true
         );
 
@@ -360,9 +360,9 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: S256 = U256::from_bytes(x_slice).into();
-        let b: S256 = U256::from_bytes(y_slice).into();
-        let exp: S256 = U256::from_bytes(exp_slice).into();
+        let a: S256 = U256::from(x_slice).into();
+        let b: S256 = U256::from(y_slice).into();
+        let exp: S256 = U256::from(exp_slice).into();
 
         let r = a - b;
         assert_eq!(exp, r);
@@ -381,10 +381,10 @@ mod tests {
             y_slice[i] = yp[i];
             exp_slice[i] = exp_p[i];
         }
-        let a: S256 = U256::from_bytes(x_slice).into();
-        let b: S256 = U256::from_bytes(y_slice).into();
+        let a: S256 = U256::from(x_slice).into();
+        let b: S256 = U256::from(y_slice).into();
         let exp: S256 = S256::from_word(
-            U256::from_bytes(exp_slice),
+            U256::from(exp_slice),
             false
         );
 
@@ -406,15 +406,15 @@ mod tests {
             exp_slice[i] = exp_p[i];
         }
         let a: S256 = S256::from_word(
-            U256::from_bytes(x_slice),
+            U256::from(x_slice),
             false
         );
         let b: S256 = S256::from_word(
-            U256::from_bytes(y_slice),
+            U256::from(y_slice),
             false
         );
         let exp: S256 = S256::from_word(
-            U256::from_bytes(exp_slice),
+            U256::from(exp_slice),
             true
         );
 
@@ -434,8 +434,8 @@ mod tests {
         }
 
         let (a, b, v) = S256::egcd(
-            U256::from_bytes(x).into(),
-            U256::from_bytes(y).into(),
+            U256::from(x).into(),
+            U256::from(y).into(),
         );
         let vp_expected = &hex::decode("0000000000000000000000000000000000000000000000000000000000000015").unwrap()[0..32];
         let ap_expected = &hex::decode("00000000000000000000000000000000000000000000000000000000000000b5").unwrap()[0..32];
@@ -448,9 +448,9 @@ mod tests {
             a_exp[i] = ap_expected[i];
             b_exp[i] = bp_expected[i];
         }
-        let v_word = U256::from_bytes(v_exp);
-        let b_word = U256::from_bytes(b_exp);
-        let a_word = U256::from_bytes(a_exp);
+        let v_word = U256::from(v_exp);
+        let b_word = U256::from(b_exp);
+        let a_word = U256::from(a_exp);
         assert_eq!(v_word, v.into());
         assert_eq!(b_word, b.into());
         assert_eq!(a_word, a.into());
