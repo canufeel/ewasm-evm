@@ -2,7 +2,8 @@ use core::{
     ops::{
         Add, Sub, AddAssign, SubAssign, Shr, ShrAssign, Div, DivAssign,
         Shl, ShlAssign, Range, Mul, MulAssign, BitAnd, BitAndAssign,
-        BitOr, BitOrAssign, BitXor, BitXorAssign
+        BitOr, BitOrAssign, BitXor, BitXorAssign,
+        Rem, RemAssign
     },
     default::Default,
     cmp::{PartialEq, PartialOrd, Ordering},
@@ -582,6 +583,32 @@ impl Div for U256 {
     type Output = U256;
     fn div(mut self, rhs: Self) -> Self::Output {
         self /= &rhs;
+        self
+    }
+}
+
+impl RemAssign<&Self> for U256 {
+    fn rem_assign(&mut self, rhs: &Self) {
+        let mut clone = self.clone();
+        self.div_assign(rhs);
+        self.mul_assign(rhs);
+        clone -= self;
+        *self = clone;
+    }
+}
+
+impl Rem<&Self> for U256 {
+    type Output = U256;
+    fn rem(mut self, rhs: &Self) -> Self::Output {
+        self %= rhs;
+        self
+    }
+}
+
+impl Rem for U256 {
+    type Output = U256;
+    fn rem(mut self, rhs: Self) -> Self::Output {
+        self %= &rhs;
         self
     }
 }

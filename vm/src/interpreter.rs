@@ -39,6 +39,7 @@ impl Interpreter {
             Opcode::LT => self.lt(),
             Opcode::GT => self.gt(),
             Opcode::EQ => self.eq(),
+            Opcode::MOD => self.modulo(),
             Opcode::ISZERO => self.is_zero(),
             Opcode::NOT => self.not(),
             Opcode::OR => self.or(),
@@ -104,6 +105,18 @@ impl Interpreter {
             a
         };
         self.run_state.stack.push(res);
+        Ok(())
+    }
+
+    fn modulo(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        self.run_state.stack.push(
+            match b.is_zero() {
+                true => b,
+                false => a % b,
+            }
+        );
         Ok(())
     }
 
