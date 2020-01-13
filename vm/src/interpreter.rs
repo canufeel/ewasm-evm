@@ -40,6 +40,8 @@ impl Interpreter {
             Opcode::GT => self.gt(),
             Opcode::EQ => self.eq(),
             Opcode::MOD => self.modulo(),
+            Opcode::ADDMOD => self.addmod(),
+            Opcode::MULMOD => self.mulmod(),
             Opcode::ISZERO => self.is_zero(),
             Opcode::NOT => self.not(),
             Opcode::OR => self.or(),
@@ -115,6 +117,32 @@ impl Interpreter {
             match b.is_zero() {
                 true => b,
                 false => a % b,
+            }
+        );
+        Ok(())
+    }
+
+    fn addmod(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        let c = self.run_state.stack.pop()?;
+        self.run_state.stack.push(
+            match c.is_zero() {
+                true => c,
+                false => (a + b) % c,
+            }
+        );
+        Ok(())
+    }
+
+    fn mulmod(&mut self) -> VmResult<()> {
+        let a = self.run_state.stack.pop()?;
+        let b = self.run_state.stack.pop()?;
+        let c = self.run_state.stack.pop()?;
+        self.run_state.stack.push(
+            match c.is_zero() {
+                true => c,
+                false => (a * b) % c,
             }
         );
         Ok(())
