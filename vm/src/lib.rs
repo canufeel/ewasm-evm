@@ -5,12 +5,20 @@ extern crate alloc;
 
 mod stack;
 mod vm_error;
-mod opcodes;
+mod interpreter;
 mod run_state;
 mod allocator;
 mod memory;
+mod opcode;
 
 use wasm_bindgen::prelude::*;
+use interpreter::Interpreter;
 
-fn main() {
+#[wasm_bindgen]
+pub fn run_bytecode(bytecode: &[u8]) -> Result<(), JsValue> {
+    let mut interpreter = Interpreter::new(bytecode);
+    match interpreter.execute() {
+        Err(e) => Err(e.into()),
+        Ok(x) => Ok(x)
+    }
 }

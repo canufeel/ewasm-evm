@@ -1,4 +1,4 @@
-use crate::u256::{U256, U256bytes};
+use crate::u256::{U256};
 use core::{
     ops::{Add, AddAssign, Sub, SubAssign, Shr, ShrAssign, Shl, ShlAssign},
     cmp::{PartialEq, PartialOrd, Ordering},

@@ -5,22 +5,23 @@ use core::{
     mem,
     ptr,
 };
+use u256::u256::U256bytes;
 
-pub trait WMemory<A: Debug, V: Debug>: Debug {
-    fn load(&self, address: A) -> Option<V>;
-    fn store(&mut self, address: A, value: V);
+pub trait WMemory<A: Debug>: Debug {
+    fn load(&self, address: A) -> Option<U256bytes>;
+    fn store(&mut self, address: A, value: &[u8], size: usize);
     fn grow(&mut self, offset: A);
     fn size(&self) -> A;
 }
 
 #[derive(Debug)]
-pub struct EVMMemory<V: Debug> {
-    data: *mut V,
+pub struct EVMMemory {
+    data: *mut u8,
     size: usize,
 }
 
-impl <V: Debug> EVMMemory<V> {
-    pub fn new() -> EVMMemory<V> {
+impl EVMMemory {
+    pub fn new() -> EVMMemory {
         EVMMemory {
             data: ptr::null_mut(),
             size: 0
@@ -28,18 +29,18 @@ impl <V: Debug> EVMMemory<V> {
     }
 }
 
-impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for EVMMemory<V> {
-    fn load(&self, address: A) -> Option<V> {
+impl<A: Debug + Into<usize> + From<usize>> WMemory<A> for EVMMemory {
+    fn load(&self, address: A) -> Option<U256bytes> {
         let EVMMemory { data, size} = self;
         let size_addr: usize = address.into();
         match size_addr >= 0 && size_addr < *size {
             true => {
-                let mut loaded: V = V::default();
+                let mut loaded: U256bytes = U256bytes::default();
                 unsafe {
                     ptr::copy(
                         data.offset(size_addr as isize),
-                        &mut loaded,
-                        1
+                        loaded.as_mut_ptr(),
+                        loaded.len()
                     );
                 }
                 Some(loaded)
@@ -48,17 +49,20 @@ impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for
         }
     }
 
-    fn store(&mut self, address: A, value: V) {
+    fn store(&mut self, address: A, value: &[u8], size: usize) {
         let EVMMemory { data, .. } = self;
         unsafe {
+            let val_ptr = value.as_ptr();
             let ptr = data.offset(address.into() as isize);
-            *ptr = value;
+            for i in 0..size as isize {
+                *ptr.offset(i) = *val_ptr.offset(i);
+            }
         }
     }
 
     fn grow(&mut self, size: A) {
         let new_size = self.size + size.into();
-        let typesize = mem::size_of::<V>();
+        let typesize = mem::size_of::<u8>();
         let new_data = match self.size {
             0 => {
                 let layout = Layout::from_size_align(
@@ -68,7 +72,7 @@ impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for
                 unsafe {
                     alloc(
                         layout
-                    ) as *mut V
+                    ) as *mut u8
                 }
             },
             _ => {
@@ -81,7 +85,7 @@ impl<A: Debug + Into<usize> + From<usize>, V: Debug + Default> WMemory<A, V> for
                         self.data as *mut u8,
                         original_layout,
                         new_size * typesize
-                    ) as *mut V
+                    ) as *mut u8
                 }
             }
         };

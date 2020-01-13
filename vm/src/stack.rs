@@ -2,7 +2,6 @@ use core::clone::Clone;
 use alloc::{collections::VecDeque, string::String};
 use crate::vm_error::{VmResult, VmError};
 
-pub type StackItem = [u32; 4];
 pub struct EVMStack <T> {
     store: VecDeque<T>
 }
