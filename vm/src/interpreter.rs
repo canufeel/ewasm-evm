@@ -16,6 +16,10 @@ impl Interpreter {
     }
 
     pub fn execute(&mut self) -> VmResult<()> {
+        Ok(())
+    }
+
+    fn step(&mut self) -> VmResult<()> {
         let pc = self.run_state.pc;
         self.run_state.pc += 1;
         let opcode = match Opcode::from_u8(self.run_state.bytecode[pc]) {
@@ -27,6 +31,7 @@ impl Interpreter {
             )
         }?;
         match opcode {
+            Opcode::STOP => Err(VmError::Stop(String::from("stop"))),
             Opcode::ADD => self.add(),
             Opcode::SUB => self.sub(),
             Opcode::MUL => self.mul(),
@@ -44,6 +49,7 @@ impl Interpreter {
             Opcode::POP => self.pop(),
             Opcode::MLOAD => self.mload(),
             Opcode::MSTORE => self.mstore(),
+            Opcode::MSTORE8 => self.mstore8(),
             Opcode::MSIZE => self.msize(),
             Opcode::PC => self.pc(),
             Opcode::JUMP => self.jump(),
@@ -67,28 +73,28 @@ impl Interpreter {
         }
     }
 
-    pub fn add(&mut self) -> VmResult<()> {
+    fn add(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a + b);
         Ok(())
     }
 
-    pub fn sub(&mut self) -> VmResult<()> {
+    fn sub(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a - b);
         Ok(())
     }
 
-    pub fn mul(&mut self) -> VmResult<()> {
+    fn mul(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a * b);
         Ok(())
     }
 
-    pub fn div(&mut self) -> VmResult<()> {
+    fn div(&mut self) -> VmResult<()> {
         let mut a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         let res = if b.is_zero() {
@@ -101,76 +107,76 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn lt(&mut self) -> VmResult<()> {
+    fn lt(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push((a < b).into());
         Ok(())
     }
 
-    pub fn gt(&mut self) -> VmResult<()> {
+    fn gt(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push((a > b).into());
         Ok(())
     }
 
-    pub fn eq(&mut self) -> VmResult<()> {
+    fn eq(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push((a == b).into());
         Ok(())
     }
 
-    pub fn is_zero(&mut self) -> VmResult<()> {
+    fn is_zero(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         self.run_state.stack.push(a.is_zero().into());
         Ok(())
     }
 
-    pub fn shl(&mut self) -> VmResult<()> {
+    fn shl(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(b << a);
         Ok(())
     }
 
-    pub fn shr(&mut self) -> VmResult<()> {
+    fn shr(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(b >> a);
         Ok(())
     }
 
-    pub fn and(&mut self) -> VmResult<()> {
+    fn and(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a & b);
         Ok(())
     }
 
-    pub fn or(&mut self) -> VmResult<()> {
+    fn or(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a | b);
         Ok(())
     }
 
-    pub fn xor(&mut self) -> VmResult<()> {
+    fn xor(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
         self.run_state.stack.push(a ^ b);
         Ok(())
     }
 
-    pub fn not(&mut self) -> VmResult<()> {
+    fn not(&mut self) -> VmResult<()> {
         let mut a = self.run_state.stack.pop()?;
         a.twos_compliment();
         self.run_state.stack.push(a);
         Ok(())
     }
 
-    pub fn pop(&mut self) -> VmResult<()> {
+    fn pop(&mut self) -> VmResult<()> {
         self.run_state.stack.pop()?;
         Ok(())
     }
@@ -196,15 +202,29 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn mstore(&mut self) -> VmResult<()> {
+    fn mstore(&mut self) -> VmResult<()> {
         let offset = self.run_state.stack.pop()?;
         let word = self.run_state.stack.pop()?;
         let size = self.run_state.memory.size();
         if size < offset {
-            self.run_state.memory.grow(offset.clone());
+            self.run_state.memory.grow(32);
         }
         let val: U256bytes = word.into();
         self.run_state.memory.store(offset, &val, 32);
+        Ok(())
+    }
+
+    fn mstore8(&mut self) -> VmResult<()> {
+        let offset = self.run_state.stack.pop()?;
+        let word = self.run_state.stack.pop()?;
+        let size = self.run_state.memory.size();
+        if size < offset {
+            self.run_state.memory.grow(1);
+        }
+        let val: U256bytes = word.into();
+        let mut default_val = U256bytes::default();
+        default_val[default_val.len() - 1] = val[val.len() - 1] & 0xff;
+        self.run_state.memory.store(offset, &default_val, 1);
         Ok(())
     }
 
@@ -256,5 +276,12 @@ impl Interpreter {
             true => Ok(()),
             false => self._jump(target.into())
         }
+    }
+
+    fn ret(&mut self) -> VmResult<()> {
+        let offset = self.run_state.stack.pop()?;
+        let len = self.run_state.stack.pop()?;
+        // TODO: implement properly
+        Ok(())
     }
 }

@@ -10,7 +10,7 @@ use u256::u256::U256bytes;
 pub trait WMemory<A: Debug>: Debug {
     fn load(&self, address: A) -> Option<U256bytes>;
     fn store(&mut self, address: A, value: &[u8], size: usize);
-    fn grow(&mut self, offset: A);
+    fn grow(&mut self, offset: usize);
     fn size(&self) -> A;
 }
 
@@ -60,8 +60,8 @@ impl<A: Debug + Into<usize> + From<usize>> WMemory<A> for EVMMemory {
         }
     }
 
-    fn grow(&mut self, size: A) {
-        let new_size = self.size + size.into();
+    fn grow(&mut self, size: usize) {
+        let new_size = self.size + size;
         let typesize = mem::size_of::<u8>();
         let new_data = match self.size {
             0 => {

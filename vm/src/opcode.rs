@@ -179,6 +179,6 @@ enum_with_from_u8!(
         CREATE2 = 0xf5,
         REVERT = 0xfd,
         STATICCALL = 0xfa,
-        SUICIDE = 0xff,
+        SELFDESTRUCT = 0xff,
     }
 );

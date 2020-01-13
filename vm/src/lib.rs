@@ -3,6 +3,8 @@
 #![feature(core_intrinsics, lang_items, alloc_error_handler)]
 extern crate alloc;
 
+use wasm_bindgen::prelude::*;
+
 mod stack;
 mod vm_error;
 mod interpreter;
@@ -10,8 +12,8 @@ mod run_state;
 mod allocator;
 mod memory;
 mod opcode;
+mod eei;
 
-use wasm_bindgen::prelude::*;
 use interpreter::Interpreter;
 
 #[wasm_bindgen]
