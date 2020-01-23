@@ -12,6 +12,7 @@ pub trait WMemory<A: Debug>: Debug {
     fn store(&mut self, address: A, value: &[u8], size: usize);
     fn grow(&mut self, offset: usize);
     fn size(&self) -> A;
+    fn address_to_memptr(&self, address: A) -> Option<*const u8>;
 }
 
 #[derive(Debug)]
@@ -95,5 +96,18 @@ impl<A: Debug + Into<usize> + From<usize>> WMemory<A> for EVMMemory {
 
     fn size(&self) -> A {
         self.size.into()
+    }
+
+    fn address_to_memptr(&self, address: A) -> Option<*const u8> {
+        let EVMMemory { data, size} = self;
+        let size_addr: usize = address.into();
+        match size_addr >= 0 && size_addr < *size {
+            true => {
+                unsafe {
+                    Some(data.offset(size_addr as isize) as *const u8)
+                }
+            },
+            false => None,
+        }
     }
 }

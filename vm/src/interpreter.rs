@@ -3,6 +3,7 @@ use crate::run_state::RunState;
 use crate::vm_error::{VmResult, VmError};
 use u256::u256::{U256bytes, U256};
 use crate::opcode::Opcode;
+use crate::eei;
 
 pub struct Interpreter {
     run_state: RunState
@@ -16,7 +17,9 @@ impl Interpreter {
     }
 
     pub fn execute(&mut self) -> VmResult<()> {
-        Ok(())
+        loop {
+            self.step()?;
+        }
     }
 
     fn step(&mut self) -> VmResult<()> {
@@ -57,7 +60,9 @@ impl Interpreter {
             Opcode::PC => self.pc(),
             Opcode::JUMP => self.jump(),
             Opcode::JUMPI => self.jumpi(),
+            Opcode::ADDRESS => self.address(),
             Opcode::JUMPDEST => Ok(()),
+            Opcode::RETURN => self.ret(),
             push_like if push_like >= Opcode::PUSH1 && push_like <= Opcode::PUSH32 => {
                 let push_amt = (push_like as u8 - Opcode::PUSH1 as u8 + 1) as usize;
                 self.push(push_amt)
@@ -322,7 +327,18 @@ impl Interpreter {
     fn ret(&mut self) -> VmResult<()> {
         let offset = self.run_state.stack.pop()?;
         let len = self.run_state.stack.pop()?;
-        // TODO: implement properly
+        match self.run_state.memory.address_to_memptr(offset) {
+            Some(offset_ptr) => {
+                eei::finish(offset_ptr, len.into());
+                Ok(())
+            },
+            None => Err(VmError::OutOfRange(String::from("Memory address invalid")))
+        }
+    }
+
+    fn address(&mut self) -> VmResult<()> {
+        let addr = eei::get_address();
+        self.run_state.stack.push(addr);
         Ok(())
     }
 }
