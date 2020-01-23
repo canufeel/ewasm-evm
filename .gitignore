@@ -2,3 +2,5 @@
 **/*.rs.bk
 u256/target/
 vm/target/
+out/
+.idea/

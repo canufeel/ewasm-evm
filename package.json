@@ -1,0 +1,21 @@
+{
+  "name": "ewasm-evm",
+  "version": "1.0.0",
+  "description": "Implementation of Ethereum Virtual Machine compatible with EWASM API",
+  "main": "index.js",
+  "scripts": {
+    "build:rs": "sh ./build-rs.sh",
+    "build": "yarn build:rs",
+    "start": "yarn build && node js/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/canufeel/ewasm-evm.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/canufeel/ewasm-evm/issues"
+  },
+  "homepage": "https://github.com/canufeel/ewasm-evm#readme"
+}
