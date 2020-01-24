@@ -1,6 +1,5 @@
 /target
 **/*.rs.bk
-u256/target/
-vm/target/
 out/
 .idea/
+node_modules/

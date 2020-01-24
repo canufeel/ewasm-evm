@@ -1,5 +1,8 @@
 
-export const wrapBind = cls => Object.entries(cls)
+export const wrapBind = ({
+  obj,
+  skip,
+}) => Object.entries(obj)
   .reduce(
     (
       acc,
@@ -7,9 +10,9 @@ export const wrapBind = cls => Object.entries(cls)
         key,
         method
       ]
-    ) => ({
+    ) => !!skip[key] ? acc : {
       ...acc,
-      [key]: (...args) => method.call(cls, args),
-    }),
+      [key]: (...args) => method.call(obj, args),
+    },
     {}
   );

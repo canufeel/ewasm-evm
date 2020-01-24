@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
-import EthereumEnvironmentInterface from "./eei";
+import {
+  EthereumEnvironmentInterface,
+  skipWrapProperties,
+} from "./eei";
 import { wrapBind } from "./utils";
 
 const readFile = promisify(fs.readFile);
@@ -16,11 +19,24 @@ const getImportObject = ({
   }
 });
 
-const boot = async () => {
+export const boot = async () => {
   const memory = new WebAssembly.Memory({ initial: 16 });
 
   const bytes = await readFile(path.resolve(__dirname, '../out/main.wasm'));
-  const api = wrapBind(new EthereumEnvironmentInterface());
+  const eeiInitObj = {
+    memory,
+    resolve: null,
+    reject: null
+  };
+  const runPromise = new Promise((resolve, reject) => {
+    eeiInitObj.resolve = resolve;
+    eeiInitObj.reject = reject;
+  });
+  const eei = new EthereumEnvironmentInterface(eeiInitObj);
+  const api = wrapBind({
+    obj: eei,
+    skip: skipWrapProperties,
+  });
   const importObject = getImportObject({
     memory,
     api,
@@ -33,5 +49,20 @@ const boot = async () => {
       }
     }
   } = results;
-  return runBytecode;
+  return {
+    run: async (...args) => {
+      runBytecode(...args);
+      return runPromise;
+    },
+    eei
+  };
+};
+
+export const executeByteCode = async (bytecode) => {
+  const {
+    eei,
+    run,
+  } = await boot();
+  const args = eei.prepareEntryArgs(bytecode);
+  return run(...args);
 };

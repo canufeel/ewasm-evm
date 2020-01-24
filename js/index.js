@@ -1,4 +1,1 @@
-
-const executeByteCode = (bytecode) => {
-
-};
+export { executeBydeCode } from './boot-vm';
