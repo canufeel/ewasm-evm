@@ -1,5 +1,7 @@
 use alloc::{string::String};
+use core::cmp::PartialEq;
 
+#[derive(Debug, PartialEq)]
 pub enum VmError {
     OutOfGas(String),
     StackUnderflow(String),

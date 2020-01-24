@@ -23,7 +23,10 @@ impl Interpreter {
 
     pub fn execute(&mut self) -> VmResult<()> {
         loop {
-            self.step()?;
+            match self.step() {
+                Err(e) => { return Err(e); },
+                _ => {}
+            }
         }
     }
 
@@ -93,21 +96,21 @@ impl Interpreter {
     fn add(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a + b);
+        self.run_state.stack.push(a + b)?;
         Ok(())
     }
 
     fn sub(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a - b);
+        self.run_state.stack.push(a - b)?;
         Ok(())
     }
 
     fn mul(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a * b);
+        self.run_state.stack.push(a * b)?;
         Ok(())
     }
 
@@ -120,7 +123,7 @@ impl Interpreter {
             a /= &b;
             a
         };
-        self.run_state.stack.push(res);
+        self.run_state.stack.push(res)?;
         Ok(())
     }
 
@@ -132,7 +135,7 @@ impl Interpreter {
                 true => b,
                 false => a % b,
             }
-        );
+        )?;
         Ok(())
     }
 
@@ -145,7 +148,7 @@ impl Interpreter {
                 true => c,
                 false => (a + b) % c,
             }
-        );
+        )?;
         Ok(())
     }
 
@@ -158,76 +161,76 @@ impl Interpreter {
                 true => c,
                 false => (a * b) % c,
             }
-        );
+        )?;
         Ok(())
     }
 
     fn lt(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a < b).into());
+        self.run_state.stack.push((a < b).into())?;
         Ok(())
     }
 
     fn gt(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a > b).into());
+        self.run_state.stack.push((a > b).into())?;
         Ok(())
     }
 
     fn eq(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a == b).into());
+        self.run_state.stack.push((a == b).into())?;
         Ok(())
     }
 
     fn is_zero(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a.is_zero().into());
+        self.run_state.stack.push(a.is_zero().into())?;
         Ok(())
     }
 
     fn shl(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(b << a);
+        self.run_state.stack.push(b << a)?;
         Ok(())
     }
 
     fn shr(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(b >> a);
+        self.run_state.stack.push(b >> a)?;
         Ok(())
     }
 
     fn and(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a & b);
+        self.run_state.stack.push(a & b)?;
         Ok(())
     }
 
     fn or(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a | b);
+        self.run_state.stack.push(a | b)?;
         Ok(())
     }
 
     fn xor(&mut self) -> VmResult<()> {
         let a = self.run_state.stack.pop()?;
         let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a ^ b);
+        self.run_state.stack.push(a ^ b)?;
         Ok(())
     }
 
     fn not(&mut self) -> VmResult<()> {
         let mut a = self.run_state.stack.pop()?;
         a.twos_compliment();
-        self.run_state.stack.push(a);
+        self.run_state.stack.push(a)?;
         Ok(())
     }
 
@@ -241,11 +244,11 @@ impl Interpreter {
         let len = word.len();
         let start_idx = self.run_state.pc;
         for i in 0..amt {
-            let byte = self.run_state.bytecode[start_idx + amt - i];
+            let byte = self.run_state.bytecode[start_idx + (amt - 1) - i];
             word[len - i - 1] = byte;
         }
         self.run_state.pc += amt;
-        self.run_state.stack.push(word.into());
+        self.run_state.stack.push(word.into())?;
         Ok(())
     }
 
@@ -291,7 +294,7 @@ impl Interpreter {
         match self.run_state.memory.load(offset) {
             None => Err(VmError::StackUnderflow(String::from("Stack underflow"))),
             Some(value) => {
-                self.run_state.stack.push(value.into());
+                self.run_state.stack.push(value.into())?;
                 Ok(())
             }
         }
@@ -299,13 +302,13 @@ impl Interpreter {
 
     fn msize(&mut self) -> VmResult<()> {
         let size = self.run_state.memory.size();
-        self.run_state.stack.push(size);
+        self.run_state.stack.push(size)?;
         Ok(())
     }
 
     fn pc(&mut self) -> VmResult<()> {
         let pc = U256::from(self.run_state.pc);
-        self.run_state.stack.push(pc);
+        self.run_state.stack.push(pc)?;
         Ok(())
     }
 
@@ -350,7 +353,7 @@ impl Interpreter {
 
     fn address(&mut self) -> VmResult<()> {
         let addr = self.run_state.eei.get_address();
-        self.run_state.stack.push(addr);
+        self.run_state.stack.push(addr)?;
         Ok(())
     }
 }
@@ -361,20 +364,98 @@ mod tests {
     use crate::eei::EeiMock;
 
     #[test]
-    fn smoke_mul_and_memory() {
+    fn smoke_stack_push() {
         let a = 25;
-        let b = 26;
-        let bytecode:[u8; 12] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x52, 0x60, 0x0, 0x60, 0x20];
+        let bytecode:[u8; 3] = [0x60, a, 0];
         let bytecode_vec = bytecode.iter().map(|a| *a).collect();
         let eei = EeiMock::new();
         let mut interpreter = Interpreter::new(
             bytecode_vec,
             Box::new(eei)
         );
-        assert_eq!(1, match interpreter.execute() {
+        assert_eq!(0, match interpreter.execute() {
             Err(_) => 0,
             Ok(_) => 1
         });
+
+        let actual = match interpreter.run_state.stack.pop() {
+            Ok(v) => v,
+            Err(_) => U256::default()
+        };
+        let expected = U256::from(a as usize);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn smoke_stack_mul() {
+        let a = 25;
+        let b = 26;
+        let bytecode:[u8; 6] = [0x60, a, 0x60, b, 0x02, 0];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(0, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+
+        let actual = match interpreter.run_state.stack.pop() {
+            Ok(v) => v,
+            Err(_) => U256::default()
+        };
+        let expected = U256::from(a as usize * b as usize);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn smoke_stack_mul_swap() {
+        let a = 25;
+        let b = 26;
+        let bytecode:[u8; 9] = [0x60, a, 0x60, b, 0x02, 0x60, a, 0x90, 0];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(0, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+
+        let actual_stack_top = match interpreter.run_state.stack.pop() {
+            Ok(v) => v,
+            Err(_) => U256::default()
+        };
+        let expected_stack_top = U256::from(a as usize * b as usize);
+        assert_eq!(actual_stack_top, expected_stack_top);
+        let actual_stack_bottom = match interpreter.run_state.stack.pop() {
+            Ok(v) => v,
+            Err(_) => U256::default()
+        };
+        let expected_stack_bottom = U256::from(a as usize);
+        assert_eq!(actual_stack_bottom, expected_stack_bottom);
+    }
+
+    #[test]
+    fn smoke_mul_and_memory() {
+        let a = 25;
+        let b = 26;
+        let bytecode:[u8; 10] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x90, 0x52, 0];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(0, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+
         let mem_word: U256 = match interpreter.run_state.memory.load(U256::default()) {
             None => U256bytes::default().into(),
             Some(value) => U256bytes::from(value).into()
