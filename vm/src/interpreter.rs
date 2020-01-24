@@ -265,13 +265,15 @@ impl Interpreter {
     fn mstore(&mut self) -> VmResult<()> {
         let offset = self.run_state.stack.pop()?;
         let word = self.run_state.stack.pop()?;
-        let word_size: usize = word.clone().into();
-        let size = self.run_state.memory.size();
-        if size < offset {
-            self.run_state.memory.grow(32);
+        let size: usize = self.run_state.memory.size().into();
+        let word_size = 32;
+        let offset_size: usize = offset.clone().into();
+        if size < offset_size + word_size {
+            let grow_size = offset_size + word_size - size;
+            self.run_state.memory.grow(grow_size);
         }
         let val: U256bytes = word.into();
-        self.run_state.memory.store(offset, &val, 32);
+        self.run_state.memory.store(offset, &val, word_size);
         Ok(())
     }
 
@@ -364,7 +366,7 @@ mod tests {
     use crate::eei::EeiMock;
 
     #[test]
-    fn smoke_stack_push() {
+    fn stack_push() {
         let a = 25;
         let bytecode:[u8; 3] = [0x60, a, 0];
         let bytecode_vec = bytecode.iter().map(|a| *a).collect();
@@ -387,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_stack_mul() {
+    fn stack_mul() {
         let a = 25;
         let b = 26;
         let bytecode:[u8; 6] = [0x60, a, 0x60, b, 0x02, 0];
@@ -411,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_stack_mul_swap() {
+    fn stack_mul_swap() {
         let a = 25;
         let b = 26;
         let bytecode:[u8; 9] = [0x60, a, 0x60, b, 0x02, 0x60, a, 0x90, 0];
@@ -441,10 +443,10 @@ mod tests {
     }
 
     #[test]
-    fn smoke_mul_and_memory() {
+    fn stack_mul_and_memory() {
         let a = 25;
         let b = 26;
-        let bytecode:[u8; 10] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x90, 0x52, 0];
+        let bytecode:[u8; 9] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x52, 0];
         let bytecode_vec = bytecode.iter().map(|a| *a).collect();
         let eei = EeiMock::new();
         let mut interpreter = Interpreter::new(
@@ -461,5 +463,27 @@ mod tests {
             Some(value) => U256bytes::from(value).into()
         };
         assert_eq!(mem_word, U256::from(a as usize * b as usize));
+    }
+
+    #[test]
+    fn stack_memory() {
+        let a = 25;
+        let bytecode:[u8; 6] = [0x60, a, 0x60, 0x0, 0x52, 0];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(0, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+
+        let mem_word: U256 = match interpreter.run_state.memory.load(U256::default()) {
+            None => U256bytes::default().into(),
+            Some(value) => U256bytes::from(value).into()
+        };
+        assert_eq!(mem_word, U256::from(a as usize));
     }
 }
