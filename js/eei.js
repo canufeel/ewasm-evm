@@ -27,8 +27,9 @@ export class EthereumEnvironmentInterface {
 
   prepareEntryArgs (bytecode) {
     const { memory } = this;
+    const u8 = new Uint8Array(memory.buffer);
     for (let i = 0; i < bytecode.length; i++) {
-      memory[i] = bytecode[i];
+      u8[i] = bytecode[i];
     }
     return [0, bytecode.length];
   }

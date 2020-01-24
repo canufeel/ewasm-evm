@@ -12,10 +12,12 @@ const readFile = promisify(fs.readFile);
 const getImportObject = ({
   memory,
   api,
+  ...rest
 }) => ({
   env: {
     memory,
     ...api,
+    ...rest,
   }
 });
 
@@ -40,6 +42,8 @@ export const boot = async () => {
   const importObject = getImportObject({
     memory,
     api,
+    // eslint-disable-next-line no-console
+    logDebug: (arg) => console.log(arg),
   });
   const results = await WebAssembly.instantiate(bytes, importObject);
   const {

@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use u256::u256::{U256, U256bytes};
 
 #[no_mangle]
 extern "C" {
@@ -76,18 +75,4 @@ extern "C" {
     pub fn ethereum_storageLoad(keyOffset: *const u32, resultOffset: *const u32);
     pub fn ethereum_storageStore(keyOffset: *const u32, valueOffset: *const u32);
     pub fn ethereum_selfDestruct(addressOffset: *const u32); // -> !;
-}
-
-pub fn get_address() -> U256 {
-    let mut bytes = U256bytes::default();
-    unsafe {
-        ethereum_getAddress(bytes[12..].as_mut_ptr() as *const u32)
-    };
-    bytes.into()
-}
-
-pub fn finish(offset: *const u8, length: usize) {
-    unsafe {
-        ethereum_finish(offset as *const u32,length as u32)
-    }
 }

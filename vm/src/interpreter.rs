@@ -1,18 +1,23 @@
-use alloc::{string::String};
+use alloc::{string::String, vec::Vec, boxed::Box};
 use crate::run_state::RunState;
 use crate::vm_error::{VmResult, VmError};
 use u256::u256::{U256bytes, U256};
 use crate::opcode::Opcode;
-use crate::boundary::eei;
+use crate::eei_common::EEI;
+cfg_if::cfg_if! {
+    if #[cfg(target = "wasm32-unknown-unknown")] {
+        use crate::eei::{debug};
+    }
+}
 
 pub struct Interpreter {
     run_state: RunState
 }
 
 impl Interpreter {
-    pub fn new(bytecode: &[u8]) -> Self {
+    pub fn new(bytecode: Vec<u8>, eei: Box<dyn EEI>) -> Self {
         Interpreter {
-            run_state: RunState::new(bytecode)
+            run_state: RunState::new(bytecode, eei)
         }
     }
 
@@ -25,6 +30,10 @@ impl Interpreter {
     fn step(&mut self) -> VmResult<()> {
         let pc = self.run_state.pc;
         self.run_state.pc += 1;
+
+        #[cfg(target = "wasm32-unknown-unknown")]
+        debug::log_debug_local(pc as i32);
+
         let opcode = match Opcode::from_u8(self.run_state.bytecode[pc]) {
             Some(c) => Ok(c),
             None => Err(
@@ -232,8 +241,10 @@ impl Interpreter {
         let len = word.len();
         let start_idx = self.run_state.pc;
         for i in 0..amt {
-            word[len - i] = self.run_state.bytecode[start_idx + amt - i];
+            let byte = self.run_state.bytecode[start_idx + amt - i];
+            word[len - i - 1] = byte;
         }
+        self.run_state.pc += amt;
         self.run_state.stack.push(word.into());
         Ok(())
     }
@@ -251,6 +262,7 @@ impl Interpreter {
     fn mstore(&mut self) -> VmResult<()> {
         let offset = self.run_state.stack.pop()?;
         let word = self.run_state.stack.pop()?;
+        let word_size: usize = word.clone().into();
         let size = self.run_state.memory.size();
         if size < offset {
             self.run_state.memory.grow(32);
@@ -274,7 +286,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn mload(&mut self) -> VmResult<()> {
+    fn mload(&mut self) -> VmResult<()> {
         let offset = self.run_state.stack.pop()?;
         match self.run_state.memory.load(offset) {
             None => Err(VmError::StackUnderflow(String::from("Stack underflow"))),
@@ -329,7 +341,7 @@ impl Interpreter {
         let len = self.run_state.stack.pop()?;
         match self.run_state.memory.address_to_memptr(offset) {
             Some(offset_ptr) => {
-                eei::finish(offset_ptr, len.into());
+                self.run_state.eei.finish(offset_ptr, len.into());
                 Ok(())
             },
             None => Err(VmError::OutOfRange(String::from("Memory address invalid")))
@@ -337,8 +349,36 @@ impl Interpreter {
     }
 
     fn address(&mut self) -> VmResult<()> {
-        let addr = eei::get_address();
+        let addr = self.run_state.eei.get_address();
         self.run_state.stack.push(addr);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::eei::EeiMock;
+
+    #[test]
+    fn smoke_mul_and_memory() {
+        let a = 25;
+        let b = 26;
+        let bytecode:[u8; 12] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x52, 0x60, 0x0, 0x60, 0x20];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(1, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+        let mem_word: U256 = match interpreter.run_state.memory.load(U256::default()) {
+            None => U256bytes::default().into(),
+            Some(value) => U256bytes::from(value).into()
+        };
+        assert_eq!(mem_word, U256::from(a as usize * b as usize));
     }
 }
