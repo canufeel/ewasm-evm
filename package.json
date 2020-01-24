@@ -33,6 +33,7 @@
     "@babel/plugin-transform-runtime": "^7.8.3",
     "@babel/preset-env": "^7.8.3",
     "@babel/register": "^7.8.3",
+    "@babel/runtime": "^7.8.3",
     "babel-eslint": "^10.0.3",
     "eslint": "^6.8.0",
     "eslint-config-node-strict": "^0.0.2",

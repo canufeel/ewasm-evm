@@ -4,8 +4,8 @@ import { promisify } from 'util';
 import {
   EthereumEnvironmentInterface,
   skipWrapProperties,
-} from "./eei";
-import { wrapBind } from "./utils";
+} from './eei';
+import { wrapBind } from './utils';
 
 const readFile = promisify(fs.readFile);
 
@@ -20,7 +20,7 @@ const getImportObject = ({
 });
 
 export const boot = async () => {
-  const memory = new WebAssembly.Memory({ initial: 16 });
+  const memory = new WebAssembly.Memory({ initial: 20 });
 
   const bytes = await readFile(path.resolve(__dirname, '../out/main.wasm'));
   const eeiInitObj = {
@@ -34,7 +34,7 @@ export const boot = async () => {
   });
   const eei = new EthereumEnvironmentInterface(eeiInitObj);
   const api = wrapBind({
-    obj: eei,
+    instance: eei,
     skip: skipWrapProperties,
   });
   const importObject = getImportObject({

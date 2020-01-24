@@ -1,6 +1,6 @@
 rm -rf ./out || exit
-rm target/release/wasm32-unknown-unknown/vm.wat
-cargo build --release || exit
-# wasm2wat target/wasm32-unknown-unknown/release/vm.wasm -o target/wasm32-unknown-unknown/release/vm.wat || exit
+rm target/release/wasm32-unknown-unknown/ewasm_evm.wat
+cargo +nightly build --release || exit
+wasm2wat target/wasm32-unknown-unknown/release/ewasm_evm.wasm -o target/wasm32-unknown-unknown/release/ewasm_evm.wat || exit
 mkdir out || exit
-cp vm/target/wasm32-unknown-unknown/release/vm.wasm out/main.wasm
+cp target/wasm32-unknown-unknown/release/ewasm_evm.wasm out/main.wasm

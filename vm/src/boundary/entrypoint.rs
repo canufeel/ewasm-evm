@@ -3,6 +3,7 @@ use core::slice;
 use crate::interpreter::Interpreter;
 
 #[allow(non_snake_case)]
+#[no_mangle]
 pub extern "C" fn runBytecode(
     bytecode_ptr: i32,
     bytecode_len: i32

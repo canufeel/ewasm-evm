@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { executeBydeCode } from '../js';
+import { executeByteCode } from '../js';
 
 describe('Smoke tests', () => {
   it('basic execution smoke test', async () => {
@@ -20,7 +20,7 @@ describe('Smoke tests', () => {
         0xf3
       ]
     );
-    const result = await executeBydeCode(bytecode);
+    const result = await executeByteCode(bytecode);
     const expected = '';
     assert.equal(result.toString('hex'), expected);
   });

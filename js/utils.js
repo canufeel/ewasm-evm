@@ -1,18 +1,17 @@
 
 export const wrapBind = ({
-  obj,
+  instance,
   skip,
-}) => Object.entries(obj)
+}) => Object.getOwnPropertyNames(
+  Object.getPrototypeOf(instance)
+)
   .reduce(
     (
       acc,
-      [
-        key,
-        method
-      ]
+      key
     ) => !!skip[key] ? acc : {
       ...acc,
-      [key]: (...args) => method.call(obj, args),
+      [key]: (...args) => instance[key].call(instance, args),
     },
     {}
   );

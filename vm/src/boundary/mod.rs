@@ -1,3 +1,3 @@
 
-mod eei;
-mod entrypoint;
+pub mod eei;
+pub mod entrypoint;

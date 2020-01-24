@@ -10,4 +10,4 @@ mod run_state;
 mod allocator;
 mod memory;
 mod opcode;
-mod boundary;
+pub mod boundary;

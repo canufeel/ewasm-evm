@@ -1,1 +1,1 @@
-export { executeBydeCode } from './boot-vm';
+export { executeByteCode } from './boot-vm';

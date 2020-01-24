@@ -3,7 +3,7 @@ use crate::run_state::RunState;
 use crate::vm_error::{VmResult, VmError};
 use u256::u256::{U256bytes, U256};
 use crate::opcode::Opcode;
-use crate::eei;
+use crate::boundary::eei;
 
 pub struct Interpreter {
     run_state: RunState
