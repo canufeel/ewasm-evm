@@ -37,9 +37,16 @@ impl Interpreter {
         #[cfg(target = "wasm32-unknown-unknown")]
         debug::log_debug_local(pc as i32);
 
-        let opcode = match Opcode::from_u8(self.run_state.bytecode[pc]) {
-            Some(c) => Ok(c),
-            None => Err(
+        let opcode = match pc >= self.run_state.bytecode.len() {
+            false => match Opcode::from_u8(self.run_state.bytecode[pc]) {
+                Some(c) => Ok(c),
+                None => Err(
+                    VmError::InvalidOpCode(
+                        String::from("Invalid opcode")
+                    )
+                )
+            },
+            true => Err(
                 VmError::InvalidOpCode(
                     String::from("Invalid opcode")
                 )
@@ -364,6 +371,7 @@ impl Interpreter {
 mod tests {
     use super::*;
     use crate::eei::EeiMock;
+    use core::slice;
 
     #[test]
     fn stack_push() {
@@ -463,6 +471,38 @@ mod tests {
             Some(value) => U256bytes::from(value).into()
         };
         assert_eq!(mem_word, U256::from(a as usize * b as usize));
+    }
+
+    #[test]
+    fn stack_mul_memory_and_ret() {
+        let a = 25;
+        let b = 26;
+        let return_data_size = 0x20;
+        let bytecode:[u8; 13] = [0x60, a, 0x60, b, 0x02, 0x60, 0x0, 0x52, 0x60, return_data_size, 0x60, 0x0, 0xf3];
+        let bytecode_vec = bytecode.iter().map(|a| *a).collect();
+        let eei = EeiMock::new();
+        let mut interpreter = Interpreter::new(
+            bytecode_vec,
+            Box::new(eei)
+        );
+        assert_eq!(0, match interpreter.execute() {
+            Err(_) => 0,
+            Ok(_) => 1
+        });
+
+        let RunState { eei: actual_eei, .. } = interpreter.run_state;
+        let eei_instance: &EeiMock = match actual_eei.as_any().downcast_ref::<EeiMock>() {
+            Some(inst) => inst,
+            None => panic!("&EEI isn't a EeiMock!"),
+        };
+        let &EeiMock { return_data_size: actual_return_data_size, return_data_ptr } = eei_instance;
+        assert_eq!(actual_return_data_size, return_data_size as usize);
+        let return_data: &mut [u8] = unsafe { slice::from_raw_parts_mut(eei_instance.return_data_ptr, actual_return_data_size) };
+        let mut bytes = U256bytes::default();
+        for (idx, value) in return_data.iter().enumerate() {
+            bytes[idx] = *value;
+        }
+        assert_eq!(U256::from(bytes), U256::from(a as usize * b as usize));
     }
 
     #[test]

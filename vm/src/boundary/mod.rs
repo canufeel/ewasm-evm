@@ -3,6 +3,7 @@ pub mod eei;
 pub mod entrypoint;
 pub mod debug;
 
+use core::any::Any;
 use u256::u256::{U256, U256bytes};
 use crate::eei_common::EEI;
 
@@ -23,9 +24,13 @@ impl EEI for WasmEei {
         bytes.into()
     }
 
-    fn finish(&self, offset: *const u8, length: usize) {
+    fn finish(&mut self, offset: *const u8, length: usize) {
         unsafe {
             eei::ethereum_finish(offset as *const u32,length as u32)
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

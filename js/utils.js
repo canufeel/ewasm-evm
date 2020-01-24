@@ -11,7 +11,7 @@ export const wrapBind = ({
       key
     ) => !!skip[key] ? acc : {
       ...acc,
-      [key]: (...args) => instance[key].call(instance, args),
+      [key]: (...args) => instance[key].call(instance, ...args),
     },
     {}
   );
