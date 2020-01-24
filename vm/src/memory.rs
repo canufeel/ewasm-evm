@@ -111,3 +111,33 @@ impl<A: Debug + Into<usize> + From<usize>> WMemory<A> for EVMMemory {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+    use super::*;
+    use u256::u256::{U256bytes, U256};
+
+    #[test]
+    fn grow_and_size() {
+        let mut mem: Box<dyn WMemory<U256>> = Box::new(EVMMemory::new());
+        mem.grow(1);
+        assert_eq!(mem.size(), U256::from(1));
+    }
+
+    #[test]
+    fn store_and_load() {
+        let mut mem: Box<dyn WMemory<U256>> = Box::new(EVMMemory::new());
+        let val: U256bytes = U256::from(512).into();
+        let len = val.len();
+        mem.grow(len);
+        let addr = U256::default();
+        mem.store(addr.clone(), &val, len);
+        match mem.load(addr) {
+            None => { assert!(false, "Should contain value"); },
+            Some(v) => {
+                assert_eq!(val, v);
+            }
+        }
+    }
+}
