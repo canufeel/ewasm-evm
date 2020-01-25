@@ -15,9 +15,7 @@ impl <T: Clone> EVMStack<T> {
         }
     }
 
-    pub fn length(&self) -> usize {
-        self.store.len()
-    }
+    // pub fn length(&self) -> usize { self.store.len() }
 
     pub fn push(&mut self, value: T) -> VmResult<()> {
         if self.store.len() == STACK_MAX_DEPTH {
@@ -32,14 +30,6 @@ impl <T: Clone> EVMStack<T> {
             None => Err(VmError::StackUnderflow(String::from("stack underflow"))),
             Some(v) => Ok(v)
         }
-    }
-
-    pub fn pop_n(&mut self, num: usize) -> VmResult<VecDeque<T>> {
-        if self.store.len() <= num {
-            return Err(VmError::StackUnderflow(String::from("stack underflow")))
-        }
-        let idx = self.store.len() - num;
-        Ok(self.store.split_off(idx))
     }
 
     pub fn swap(&mut self, pos: usize) -> VmResult<()> {
@@ -105,7 +95,7 @@ mod tests {
             Ok(_) => {
                 assert_eq!(stack.pop().unwrap(), a);
             },
-            Err(e) => {
+            Err(_) => {
                 assert!(false, "Should swap 2 elements");
             },
         };

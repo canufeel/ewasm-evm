@@ -12,8 +12,8 @@
     "lint:js-tests": "eslint --ext .js ./test",
     "test:run-js": "node ./node_modules/.bin/mocha --recursive --require ./mocha-require.js",
     "test:js": "yarn build:rs && yarn test:run-js",
-    "test:rs-u256": "(cd u256 && cargo test || exit)",
-    "test:rs-vm": "(cd vm && cargo test || exit)",
+    "test:rs-u256": "(cd u256 && cargo +nightly test || exit)",
+    "test:rs-vm": "(cd vm && cargo +nightly test || exit)",
     "test:rs": "yarn test:rs-u256 && yarn test:rs-vm",
     "test": "yarn lint:js && yarn lint:js-tests && yarn test:rs && yarn test:js"
   },

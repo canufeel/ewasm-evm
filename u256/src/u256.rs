@@ -774,7 +774,7 @@ mod tests {
         assert_eq!(a >> 35, exp);
     }
 
-    #[test]
+    /*#[test]
     fn mult_inv() {
         let mut x_slice: [u8; 32] = [0u8; 32];
         let mut exp_slice: [u8; 32] = [0u8; 32];
@@ -788,6 +788,6 @@ mod tests {
         let exp = U256::from(exp_slice);
         let res = a.mult_inverse();
         assert_eq!(res, Some(exp));
-    }
+    }*/
 
 }

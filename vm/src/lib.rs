@@ -7,7 +7,6 @@ extern crate cfg_if;
 mod stack;
 mod vm_error;
 mod interpreter;
-mod run_state;
 mod allocator;
 mod memory;
 mod opcode;

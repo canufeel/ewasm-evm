@@ -25,6 +25,14 @@ impl EEI for EeiMock {
         self.return_data_ptr = offset as *mut u8;
     }
 
+    fn revert(&mut self, offset: *const u8, length: usize) {
+        self.return_data_size = length;
+        self.return_data_ptr = offset as *mut u8;
+    }
+
+    fn sload(&mut self, _key_offset: *const u8, _result_offset: *const u8) {}
+    fn sstore(&mut self, _key_offset: *const u8, _value_offset: *const u8) {}
+
     fn as_any(&self) -> &dyn Any {
         self
     }

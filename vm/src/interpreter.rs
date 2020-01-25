@@ -1,9 +1,10 @@
 use alloc::{string::String, vec::Vec, boxed::Box};
-use crate::run_state::RunState;
 use crate::vm_error::{VmResult, VmError};
 use u256::u256::{U256bytes, U256};
 use crate::opcode::Opcode;
 use crate::eei_common::EEI;
+use crate::stack::EVMStack;
+use crate::memory::{WMemory, EVMMemory};
 cfg_if::cfg_if! {
     if #[cfg(target = "wasm32-unknown-unknown")] {
         use crate::eei::{debug};
@@ -11,13 +12,23 @@ cfg_if::cfg_if! {
 }
 
 pub struct Interpreter {
-    run_state: RunState
+    pub stack: EVMStack<U256>,
+    pub memory: Box<dyn WMemory<U256>>,
+    pub wasm_mem: Box<dyn WMemory<U256>>,
+    pub bytecode: Vec<u8>,
+    pub eei: Box<dyn EEI>,
+    pub pc: usize
 }
 
 impl Interpreter {
     pub fn new(bytecode: Vec<u8>, eei: Box<dyn EEI>) -> Self {
         Interpreter {
-            run_state: RunState::new(bytecode, eei)
+            stack: EVMStack::new(),
+            memory: Box::new(EVMMemory::new()),
+            wasm_mem: Box::new(EVMMemory::new()),
+            pc: 0,
+            bytecode,
+            eei
         }
     }
 
@@ -31,14 +42,14 @@ impl Interpreter {
     }
 
     fn step(&mut self) -> VmResult<()> {
-        let pc = self.run_state.pc;
-        self.run_state.pc += 1;
+        let pc = self.pc;
+        self.pc += 1;
 
         #[cfg(target = "wasm32-unknown-unknown")]
         debug::log_debug_local(pc as i32);
 
-        let opcode = match pc >= self.run_state.bytecode.len() {
-            false => match Opcode::from_u8(self.run_state.bytecode[pc]) {
+        let opcode = match pc >= self.bytecode.len() {
+            false => match Opcode::from_u8(self.bytecode[pc]) {
                 Some(c) => Ok(c),
                 None => Err(
                     VmError::InvalidOpCode(
@@ -81,7 +92,10 @@ impl Interpreter {
             Opcode::JUMPI => self.jumpi(),
             Opcode::ADDRESS => self.address(),
             Opcode::JUMPDEST => Ok(()),
+            Opcode::SLOAD => self.sload(),
+            Opcode::SSTORE => self.sstore(),
             Opcode::RETURN => self.ret(),
+            Opcode::REVERT => self.revert(),
             push_like if push_like >= Opcode::PUSH1 && push_like <= Opcode::PUSH32 => {
                 let push_amt = (push_like as u8 - Opcode::PUSH1 as u8 + 1) as usize;
                 self.push(push_amt)
@@ -101,43 +115,43 @@ impl Interpreter {
     }
 
     fn add(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a + b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a + b)?;
         Ok(())
     }
 
     fn sub(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a - b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a - b)?;
         Ok(())
     }
 
     fn mul(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a * b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a * b)?;
         Ok(())
     }
 
     fn div(&mut self) -> VmResult<()> {
-        let mut a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
+        let mut a = self.stack.pop()?;
+        let b = self.stack.pop()?;
         let res = if b.is_zero() {
             b
         } else {
             a /= &b;
             a
         };
-        self.run_state.stack.push(res)?;
+        self.stack.push(res)?;
         Ok(())
     }
 
     fn modulo(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(
             match b.is_zero() {
                 true => b,
                 false => a % b,
@@ -147,10 +161,10 @@ impl Interpreter {
     }
 
     fn addmod(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        let c = self.run_state.stack.pop()?;
-        self.run_state.stack.push(
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        let c = self.stack.pop()?;
+        self.stack.push(
             match c.is_zero() {
                 true => c,
                 false => (a + b) % c,
@@ -160,10 +174,10 @@ impl Interpreter {
     }
 
     fn mulmod(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        let c = self.run_state.stack.pop()?;
-        self.run_state.stack.push(
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        let c = self.stack.pop()?;
+        self.stack.push(
             match c.is_zero() {
                 true => c,
                 false => (a * b) % c,
@@ -173,175 +187,175 @@ impl Interpreter {
     }
 
     fn lt(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a < b).into())?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push((a < b).into())?;
         Ok(())
     }
 
     fn gt(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a > b).into())?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push((a > b).into())?;
         Ok(())
     }
 
     fn eq(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push((a == b).into())?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push((a == b).into())?;
         Ok(())
     }
 
     fn is_zero(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a.is_zero().into())?;
+        let a = self.stack.pop()?;
+        self.stack.push(a.is_zero().into())?;
         Ok(())
     }
 
     fn shl(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(b << a)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(b << a)?;
         Ok(())
     }
 
     fn shr(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(b >> a)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(b >> a)?;
         Ok(())
     }
 
     fn and(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a & b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a & b)?;
         Ok(())
     }
 
     fn or(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a | b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a | b)?;
         Ok(())
     }
 
     fn xor(&mut self) -> VmResult<()> {
-        let a = self.run_state.stack.pop()?;
-        let b = self.run_state.stack.pop()?;
-        self.run_state.stack.push(a ^ b)?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.stack.push(a ^ b)?;
         Ok(())
     }
 
     fn not(&mut self) -> VmResult<()> {
-        let mut a = self.run_state.stack.pop()?;
+        let mut a = self.stack.pop()?;
         a.twos_compliment();
-        self.run_state.stack.push(a)?;
+        self.stack.push(a)?;
         Ok(())
     }
 
     fn pop(&mut self) -> VmResult<()> {
-        self.run_state.stack.pop()?;
+        self.stack.pop()?;
         Ok(())
     }
 
     fn push(&mut self, amt: usize) -> VmResult<()> {
         let mut word = U256bytes::default();
         let len = word.len();
-        let start_idx = self.run_state.pc;
+        let start_idx = self.pc;
         for i in 0..amt {
-            let byte = self.run_state.bytecode[start_idx + (amt - 1) - i];
+            let byte = self.bytecode[start_idx + (amt - 1) - i];
             word[len - i - 1] = byte;
         }
-        self.run_state.pc += amt;
-        self.run_state.stack.push(word.into())?;
+        self.pc += amt;
+        self.stack.push(word.into())?;
         Ok(())
     }
 
     fn dup(&mut self, pos: usize) -> VmResult<()> {
-        self.run_state.stack.dup(pos)?;
+        self.stack.dup(pos)?;
         Ok(())
     }
 
     fn swap(&mut self, pos: usize) -> VmResult<()> {
-        self.run_state.stack.swap(pos)?;
+        self.stack.swap(pos)?;
         Ok(())
     }
 
     fn mstore(&mut self) -> VmResult<()> {
-        let offset = self.run_state.stack.pop()?;
-        let word = self.run_state.stack.pop()?;
-        let size: usize = self.run_state.memory.size().into();
+        let offset = self.stack.pop()?;
+        let word = self.stack.pop()?;
+        let size: usize = self.memory.size().into();
         let word_size = 32;
         let offset_size: usize = offset.clone().into();
         if size < offset_size + word_size {
             let grow_size = offset_size + word_size - size;
-            self.run_state.memory.grow(grow_size);
+            self.memory.grow(grow_size);
         }
         let val: U256bytes = word.into();
-        self.run_state.memory.store(offset, &val, word_size);
+        self.memory.store(offset, &val, word_size);
         Ok(())
     }
 
     fn mstore8(&mut self) -> VmResult<()> {
-        let offset = self.run_state.stack.pop()?;
-        let word = self.run_state.stack.pop()?;
-        let size = self.run_state.memory.size();
+        let offset = self.stack.pop()?;
+        let word = self.stack.pop()?;
+        let size = self.memory.size();
         if size < offset {
-            self.run_state.memory.grow(1);
+            self.memory.grow(1);
         }
         let val: U256bytes = word.into();
         let mut default_val = U256bytes::default();
         default_val[default_val.len() - 1] = val[val.len() - 1] & 0xff;
-        self.run_state.memory.store(offset, &default_val, 1);
+        self.memory.store(offset, &default_val, 1);
         Ok(())
     }
 
     fn mload(&mut self) -> VmResult<()> {
-        let offset = self.run_state.stack.pop()?;
-        match self.run_state.memory.load(offset) {
+        let offset = self.stack.pop()?;
+        match self.memory.load(offset) {
             None => Err(VmError::StackUnderflow(String::from("Stack underflow"))),
             Some(value) => {
-                self.run_state.stack.push(value.into())?;
+                self.stack.push(value.into())?;
                 Ok(())
             }
         }
     }
 
     fn msize(&mut self) -> VmResult<()> {
-        let size = self.run_state.memory.size();
-        self.run_state.stack.push(size)?;
+        let size = self.memory.size();
+        self.stack.push(size)?;
         Ok(())
     }
 
     fn pc(&mut self) -> VmResult<()> {
-        let pc = U256::from(self.run_state.pc);
-        self.run_state.stack.push(pc)?;
+        let pc = U256::from(self.pc);
+        self.stack.push(pc)?;
         Ok(())
     }
 
     fn _jump(&mut self, size_target: usize) -> VmResult<()> {
-        if size_target < self.run_state.bytecode.len() {
+        if size_target < self.bytecode.len() {
             return Err(VmError::InvalidJump(String::from("Invalid jump")))
         }
 
-        match Opcode::from_u8(self.run_state.bytecode[size_target]) {
+        match Opcode::from_u8(self.bytecode[size_target]) {
             Some(Opcode::JUMPDEST) => {},
             _ => { return Err(VmError::InvalidJump(String::from("Invalid jump"))) }
         };
-        self.run_state.pc = size_target;
+        self.pc = size_target;
         Ok(())
     }
 
     fn jump(&mut self) -> VmResult<()> {
-        let target = self.run_state.stack.pop()?;
+        let target = self.stack.pop()?;
         self._jump(target.into())
     }
 
     fn jumpi(&mut self) -> VmResult<()> {
-        let target = self.run_state.stack.pop()?;
-        let condition = self.run_state.stack.pop()?;
+        let target = self.stack.pop()?;
+        let condition = self.stack.pop()?;
         match condition.is_zero() {
             true => Ok(()),
             false => self._jump(target.into())
@@ -349,20 +363,92 @@ impl Interpreter {
     }
 
     fn ret(&mut self) -> VmResult<()> {
-        let offset = self.run_state.stack.pop()?;
-        let len = self.run_state.stack.pop()?;
-        match self.run_state.memory.address_to_memptr(offset) {
+        let offset = self.stack.pop()?;
+        let len = self.stack.pop()?;
+        match self.memory.address_to_memptr(offset) {
             Some(offset_ptr) => {
-                self.run_state.eei.finish(offset_ptr, len.into());
+                self.eei.finish(offset_ptr, len.into());
                 Ok(())
             },
             None => Err(VmError::OutOfRange(String::from("Memory address invalid")))
         }
     }
 
+    fn revert(&mut self) -> VmResult<()> {
+        let offset = self.stack.pop()?;
+        let len = self.stack.pop()?;
+        match self.memory.address_to_memptr(offset) {
+            Some(offset_ptr) => {
+                self.eei.revert(offset_ptr, len.into());
+                Ok(())
+            },
+            None => Err(VmError::OutOfRange(String::from("Memory address invalid")))
+        }
+    }
+
+    fn sstore(&mut self) -> VmResult<()> {
+        let key = self.stack.pop()?;
+        let value = self.stack.pop()?;
+
+        let size: usize = self.wasm_mem.size().into();
+        let word_len = 32;
+        let required_size = word_len * 2;
+        if size < required_size {
+            self.wasm_mem.grow(required_size);
+        }
+        let key_bytes: U256bytes = key.into();
+        let val_bytes: U256bytes = value.into();
+        let key_offset = U256::default();
+        let val_offset = U256::from(word_len);
+        self.wasm_mem.store(key_offset.clone(), &key_bytes, word_len);
+        self.wasm_mem.store(val_offset.clone(), &val_bytes, word_len);
+        match (
+            self.wasm_mem.address_to_memptr(key_offset),
+            self.wasm_mem.address_to_memptr(val_offset)
+        ) {
+            (Some(key_ptr), Some(val_ptr)) => {
+                self.eei.sstore(key_ptr, val_ptr);
+                Ok(())
+            },
+            (_, _) => Err(VmError::OutOfRange(String::from("Memory address invalid")))
+        }
+    }
+
+    fn sload(&mut self) -> VmResult<()> {
+        let key = self.stack.pop()?;
+
+        let size: usize = self.wasm_mem.size().into();
+        let word_len = 32;
+        let required_size = word_len * 2;
+        if size < required_size {
+            self.wasm_mem.grow(required_size);
+        }
+        let key_bytes: U256bytes = key.into();
+        let key_offset = U256::default();
+        let result_offset = U256::from(word_len);
+        self.wasm_mem.store(key_offset.clone(), &key_bytes, word_len);
+        match (
+            self.wasm_mem.address_to_memptr(key_offset),
+            self.wasm_mem.address_to_memptr(result_offset.clone())
+        ) {
+            (Some(key_ptr), Some(result_ptr)) => {
+                self.eei.sload(key_ptr, result_ptr);
+                match self.wasm_mem.load(result_offset) {
+                    Some(result_bytes) => {
+                        let sload_result = U256::from(result_bytes);
+                        self.stack.push(sload_result)?;
+                        Ok(())
+                    },
+                    None => Err(VmError::OutOfRange(String::from("Memory address invalid")))
+                }
+            },
+            (_, _) => Err(VmError::OutOfRange(String::from("Memory address invalid")))
+        }
+    }
+
     fn address(&mut self) -> VmResult<()> {
-        let addr = self.run_state.eei.get_address();
-        self.run_state.stack.push(addr)?;
+        let addr = self.eei.get_address();
+        self.stack.push(addr)?;
         Ok(())
     }
 }
@@ -388,7 +474,7 @@ mod tests {
             Ok(_) => 1
         });
 
-        let actual = match interpreter.run_state.stack.pop() {
+        let actual = match interpreter.stack.pop() {
             Ok(v) => v,
             Err(_) => U256::default()
         };
@@ -412,7 +498,7 @@ mod tests {
             Ok(_) => 1
         });
 
-        let actual = match interpreter.run_state.stack.pop() {
+        let actual = match interpreter.stack.pop() {
             Ok(v) => v,
             Err(_) => U256::default()
         };
@@ -436,13 +522,13 @@ mod tests {
             Ok(_) => 1
         });
 
-        let actual_stack_top = match interpreter.run_state.stack.pop() {
+        let actual_stack_top = match interpreter.stack.pop() {
             Ok(v) => v,
             Err(_) => U256::default()
         };
         let expected_stack_top = U256::from(a as usize * b as usize);
         assert_eq!(actual_stack_top, expected_stack_top);
-        let actual_stack_bottom = match interpreter.run_state.stack.pop() {
+        let actual_stack_bottom = match interpreter.stack.pop() {
             Ok(v) => v,
             Err(_) => U256::default()
         };
@@ -466,7 +552,7 @@ mod tests {
             Ok(_) => 1
         });
 
-        let mem_word: U256 = match interpreter.run_state.memory.load(U256::default()) {
+        let mem_word: U256 = match interpreter.memory.load(U256::default()) {
             None => U256bytes::default().into(),
             Some(value) => U256bytes::from(value).into()
         };
@@ -490,14 +576,17 @@ mod tests {
             Ok(_) => 1
         });
 
-        let RunState { eei: actual_eei, .. } = interpreter.run_state;
+        let Interpreter { eei: actual_eei, .. } = interpreter;
         let eei_instance: &EeiMock = match actual_eei.as_any().downcast_ref::<EeiMock>() {
             Some(inst) => inst,
             None => panic!("&EEI isn't a EeiMock!"),
         };
-        let &EeiMock { return_data_size: actual_return_data_size, return_data_ptr } = eei_instance;
+        let &EeiMock {
+            return_data_size: actual_return_data_size,
+            return_data_ptr
+        } = eei_instance;
         assert_eq!(actual_return_data_size, return_data_size as usize);
-        let return_data: &mut [u8] = unsafe { slice::from_raw_parts_mut(eei_instance.return_data_ptr, actual_return_data_size) };
+        let return_data: &mut [u8] = unsafe { slice::from_raw_parts_mut(return_data_ptr, actual_return_data_size) };
         let mut bytes = U256bytes::default();
         for (idx, value) in return_data.iter().enumerate() {
             bytes[idx] = *value;
@@ -520,7 +609,7 @@ mod tests {
             Ok(_) => 1
         });
 
-        let mem_word: U256 = match interpreter.run_state.memory.load(U256::default()) {
+        let mem_word: U256 = match interpreter.memory.load(U256::default()) {
             None => U256bytes::default().into(),
             Some(value) => U256bytes::from(value).into()
         };
