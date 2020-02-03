@@ -108,9 +108,7 @@ impl Interpreter {
                 let swap_pos = (swap_like as u8 - Opcode::SWAP1 as u8 + 1) as usize;
                 self.swap(swap_pos)
             },
-            _ => {
-                unimplemented!();
-            }
+            _ => unreachable!()
         }
     }
 

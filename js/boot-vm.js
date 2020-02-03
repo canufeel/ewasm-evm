@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import {
-  EthereumEnvironmentInterface,
+  EthereumEnvironmentInterfaceIntrinsic,
   skipWrapProperties,
-} from './eei';
+} from './eei-intrinsic';
 import { wrapBind } from './utils';
 
 const readFile = promisify(fs.readFile);
@@ -21,22 +21,24 @@ const getImportObject = ({
   }
 });
 
-export const boot = async () => {
+export const boot = async (eeiImpl) => {
   const memory = new WebAssembly.Memory({ initial: 20 });
 
   const bytes = await readFile(path.resolve(__dirname, '../out/main.wasm'));
   const eeiInitObj = {
     memory,
     resolve: null,
-    reject: null
+    reject: null,
+    resolved: false,
+    eei: eeiImpl,
   };
   const runPromise = new Promise((resolve, reject) => {
     eeiInitObj.resolve = resolve;
     eeiInitObj.reject = reject;
   });
-  const eei = new EthereumEnvironmentInterface(eeiInitObj);
+  const eei = new EthereumEnvironmentInterfaceIntrinsic(eeiInitObj);
   const api = wrapBind({
-    instance: eei,
+    instance: eeiImpl,
     skip: skipWrapProperties,
   });
   const importObject = getImportObject({
@@ -56,17 +58,26 @@ export const boot = async () => {
   return {
     run: async (...args) => {
       runBytecode(...args);
+      if (!eeiInitObj.resolved) {
+        eeiInitObj.resolve([]); // TODO: is this what should actually happen?
+      }
       return runPromise;
     },
     eei
   };
 };
 
-export const executeByteCode = async (bytecode) => {
+export const prepareRunEnv = async ({
+  eeiImpl,
+  bytecode = eeiImpl.execBytecode,
+}) => {
   const {
     eei,
     run,
-  } = await boot();
+  } = await boot(eeiImpl);
   const args = eei.prepareEntryArgs(bytecode);
-  return run(...args);
+  return {
+    run: () => run(...args),
+    eei
+  };
 };

@@ -80,6 +80,23 @@ impl U256 {
         }
     }
 
+    pub fn sdiv(mut self, mut other: U256) {
+        let self_negative = (self.data[0] >> 31) != 0;
+        let other_negative = (other.data[0] >> 31) != 0;
+        self.data[0] &= (1 << 31);
+        other.data[0] &= (1 << 31);
+        self /= &other;
+        match (self_negative, other_negative) {
+            (true, false) => {
+                self.data[0] ^= (1 << 31);
+            },
+            (false, true) => {
+                self.data[0] ^= (1 << 31);
+            },
+            (_, _) => {}
+        };
+    }
+
     pub fn mult_inverse(&self) -> Option<Self> {
         let bit_length = WORD_LENGTH * USABLE_BIT_LENGTH as usize;
         let mut ext_one = Self::one();

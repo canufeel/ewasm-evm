@@ -1,1 +1,1 @@
-export { executeByteCode } from './boot-vm';
+export { prepareRunEnv } from './boot-vm';

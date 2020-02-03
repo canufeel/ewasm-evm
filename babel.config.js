@@ -7,6 +7,7 @@ module.exports = function (api) {
   ];
   const plugins = [
     '@babel/transform-runtime',
+    '@babel/plugin-proposal-class-properties'
   ];
   return {
     presets,
