@@ -42,28 +42,36 @@ describe('Smoke tests', () => {
   describe('Ethereum', () => {
     const testData = getTestsList();
     testData.forEach(({
-      fileName,
-      data: {
-        exec,
-        post,
-        pre,
-        out
-      },
+      testGroupName,
+      testCases,
     }) => {
-      it(`${fileName}`, async () => {
-        const eeiImpl = new EthereumEnvironmentInterfaceMock({
-          state: pre,
-          ctx: exec,
+      describe(`${testGroupName}`, () => {
+        testCases.forEach(({
+          fileName,
+          data: {
+            exec,
+            post,
+            pre,
+            out
+          },
+        }) => {
+          it(`${fileName}`, async () => {
+            const eeiImpl = new EthereumEnvironmentInterfaceMock({
+              state: pre,
+              ctx: exec,
+            });
+            const {
+              run,
+            } = await prepareRunEnv({
+              eeiImpl,
+            });
+            const result = await run();
+            assert.deepEqual(eeiImpl.state, transformPostStorage(post));
+            assert.equal(toHex(result), out);
+          });
         });
-        const {
-          run,
-        } = await prepareRunEnv({
-          eeiImpl,
-        });
-        const result = await run();
-        assert.deepEqual(eeiImpl.state, transformPostStorage(post));
-        assert.equal(toHex(result), out);
       });
     });
   });
 });
+
