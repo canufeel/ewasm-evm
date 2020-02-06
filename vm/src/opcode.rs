@@ -14,6 +14,11 @@ macro_rules! enum_with_from_u8 {
 		}
 
 		impl $name {
+		    pub fn to_str(&self) -> &'static str {
+		        match self {
+		            $( $variant => stringify!($variant) ),+,
+		        }
+		    }
 			pub fn from_u8(value: u8) -> Option<Self> {
 				match value {
 					$( $representation => Some($variant) ),+,

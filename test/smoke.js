@@ -37,6 +37,38 @@ describe('Smoke tests', () => {
       const expected = BigInt(a * b).toString(16).padStart(64, '0');
       assert.equal(Buffer.from(result).toString('hex'), expected);
     });
+
+    it('parse bytecode', async () => {
+      const a = 25;
+      const b = 26;
+      const bytecode = Buffer.from(
+        [
+          0x60,
+          a,
+          0x60,
+          b,
+          0x02,
+          0x60,
+          0x0,
+          0x52,
+          0x60,
+          0x20,
+          0x60,
+          0x0,
+          0xf3
+        ]
+      );
+      const eeiImpl = new EthereumEnvironmentInterfaceMock({});
+      const {
+        humanizeBytecode,
+      } = await prepareRunEnv({
+        bytecode,
+        eeiImpl
+      });
+      const result = await humanizeBytecode(bytecode);
+      const expected = 'PUSH1 0x19 PUSH1 0x1a MUL PUSH1 0x00 MSTORE PUSH1 0x20 PUSH1 0x00 RETURN';
+      assert.equal(result, expected);
+    });
   });
 
   describe('Ethereum', () => {
@@ -62,11 +94,16 @@ describe('Smoke tests', () => {
             });
             const {
               run,
+              humanizeBytecode,
             } = await prepareRunEnv({
               eeiImpl,
             });
             const result = await run();
-            assert.deepEqual(eeiImpl.state, transformPostStorage(post));
+            assert.deepEqual(
+              eeiImpl.state,
+              transformPostStorage(post),
+              await humanizeBytecode(eeiImpl.execBytecode)
+            );
             assert.equal(toHex(result), out);
           });
         });

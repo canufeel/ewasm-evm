@@ -11,7 +11,7 @@ path = "vm/src/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hex = "0.4.0"
+hex = { version = "0.4.0", default-features = false }
 u256 = { path = "u256" }
 wee_alloc = "0.4.5"
 serde_repr = "0.1.5"

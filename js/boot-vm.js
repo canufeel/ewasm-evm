@@ -6,20 +6,34 @@ import {
   skipWrapProperties,
 } from './eei-intrinsic';
 import { wrapBind } from './utils';
+import { AuxApi } from './aux-api';
 
 const readFile = promisify(fs.readFile);
 
 const getImportObject = ({
   memory,
-  api,
   ...rest
 }) => ({
   env: {
     memory,
-    ...api,
     ...rest,
   }
 });
+
+const wrapWasmCodeWithPromise = ({
+  eeiInitObj,
+  method,
+}) => async (...args) => {
+  const runPromise = new Promise((resolve, reject) => {
+    eeiInitObj.resolve = resolve;
+    eeiInitObj.reject = reject;
+  });
+  method(...args);
+  if (!eeiInitObj.resolved) {
+    eeiInitObj.resolve([]); // TODO: is this what should actually happen?
+  }
+  return runPromise;
+};
 
 export const boot = async (eeiImpl) => {
   const memory = new WebAssembly.Memory({ initial: 20 });
@@ -32,18 +46,20 @@ export const boot = async (eeiImpl) => {
     resolved: false,
     eei: eeiImpl,
   };
-  const runPromise = new Promise((resolve, reject) => {
-    eeiInitObj.resolve = resolve;
-    eeiInitObj.reject = reject;
-  });
-  const eei = new EthereumEnvironmentInterfaceIntrinsic(eeiInitObj);
-  const api = wrapBind({
+
+  const eeiIntrinsic = new EthereumEnvironmentInterfaceIntrinsic(eeiInitObj);
+  const eeiApi = wrapBind({
     instance: eeiImpl,
+    skip: skipWrapProperties,
+  });
+  const auxApi = wrapBind({
+    instance: new AuxApi(eeiIntrinsic),
     skip: skipWrapProperties,
   });
   const importObject = getImportObject({
     memory,
-    api,
+    ...eeiApi,
+    ...auxApi,
     // eslint-disable-next-line no-console
     logDebug: (arg) => console.log(arg),
   });
@@ -52,18 +68,20 @@ export const boot = async (eeiImpl) => {
     instance: {
       exports: {
         runBytecode,
+        humanizeBytecode,
       }
     }
   } = results;
   return {
-    run: async (...args) => {
-      runBytecode(...args);
-      if (!eeiInitObj.resolved) {
-        eeiInitObj.resolve([]); // TODO: is this what should actually happen?
-      }
-      return runPromise;
-    },
-    eei
+    run: wrapWasmCodeWithPromise({
+      method: runBytecode,
+      eeiInitObj,
+    }),
+    humanizeBytecode: wrapWasmCodeWithPromise({
+      method: humanizeBytecode,
+      eeiInitObj,
+    }),
+    eei: eeiIntrinsic,
   };
 };
 
@@ -74,10 +92,17 @@ export const prepareRunEnv = async ({
   const {
     eei,
     run,
+    humanizeBytecode,
   } = await boot(eeiImpl);
-  const args = eei.prepareEntryArgs(bytecode);
   return {
-    run: () => run(...args),
+    run: () => {
+      const runBytecodeArgs = eei.prepareBytecodeArgs(bytecode);
+      return run(...runBytecodeArgs);
+    },
+    humanizeBytecode: () => {
+      const parseBytecodeArgs = eei.prepareBytecodeArgs(bytecode);
+      return humanizeBytecode(...parseBytecodeArgs);
+    },
     eei
   };
 };

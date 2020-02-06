@@ -11,6 +11,7 @@ mod allocator;
 mod memory;
 mod opcode;
 pub mod eei_common;
+pub mod parser;
 
 cfg_if::cfg_if! {
        if #[cfg(target = "wasm32-unknown-unknown")] {

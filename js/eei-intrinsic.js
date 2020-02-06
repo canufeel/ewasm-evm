@@ -5,7 +5,7 @@ export const skipWrapProperties = {
   reject: true,
   memory: true,
   initObject: true,
-  prepareEntryArgs: true,
+  prepareBytecodeArgs: true,
   skipProperties: true,
   _skipProperties: true,
 };
@@ -47,7 +47,7 @@ export class EthereumEnvironmentInterfaceIntrinsic {
     return new Uint8Array(this.initObject.memory.buffer);
   }
 
-  prepareEntryArgs (bytecode) {
+  prepareBytecodeArgs (bytecode) {
     const { memory } = this;
     for (let i = 0; i < bytecode.length; i++) {
       memory[i] = bytecode[i];
