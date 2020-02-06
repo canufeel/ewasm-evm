@@ -99,12 +99,13 @@ describe('Smoke tests', () => {
               eeiImpl,
             });
             const result = await run();
+            const humanized = await humanizeBytecode(eeiImpl.execBytecode);
             assert.deepEqual(
               eeiImpl.state,
               transformPostStorage(post),
-              await humanizeBytecode(eeiImpl.execBytecode)
+              humanized
             );
-            assert.equal(toHex(result), out);
+            assert.equal(toHex(result), out, humanized);
           });
         });
       });

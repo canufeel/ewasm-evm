@@ -164,6 +164,17 @@ impl From<U256bytes> for U256 {
     }
 }
 
+impl From<&[u8]> for U256 {
+    fn from(slice: &[u8]) -> Self {
+        let mut bytes = U256bytes::default();
+        for (idx, byte) in bytes.iter_mut().enumerate() {
+            *byte = slice[idx];
+        }
+        let bytes = U256bytes::from(bytes);
+        bytes.into()
+    }
+}
+
 impl Into<U256bytes> for U256 {
     fn into(self) -> U256bytes {
         let mut bytes = [0u8; BYTES_WORD_LENGTH];
@@ -692,6 +703,14 @@ mod tests {
         let word = U256::from(a.clone());
         let expected = [66051, 67438087, 134810123, 202182159, 269554195, 336926231, 404298267, 471670303];
         assert_eq!(word.data, expected);
+    }
+
+    #[test]
+    fn div_normal() {
+        let xp = U256::from(&hex::decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210").unwrap()[..]);
+        let yp = U256::from(&hex::decode("0000000000000000000000000000000000000000000000000000000000000002").unwrap()[..]);
+        let exp_p = U256::from(&hex::decode("7f6e5d4c3b2a19087f6e5d4c3b2a19087f6e5d4c3b2a19087f6e5d4c3b2a1908").unwrap()[..]);
+        assert_eq!(xp / yp, exp_p);
     }
 
     #[test]
